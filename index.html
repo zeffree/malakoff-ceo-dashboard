@@ -1,0 +1,1452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Malakoff — CEO Control Center</title>
+<script>
+  (() => {
+    const param = new URLSearchParams(window.location.search).get("clawpilotTheme");
+    const theme = param || "dark";
+    document.documentElement.setAttribute("data-theme", theme);
+  })();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --cp-bg: #f7f4ef; --cp-bg-elevated: #fcfbf8; --cp-surface: #ffffff; --cp-surface-soft: #f5f5f5;
+  --cp-border: #dedede; --cp-border-strong: #919191;
+  --cp-text: #242424; --cp-text-muted: #5c5c5c; --cp-text-soft: #6f6f6f;
+  --cp-accent: #b11f4b; --cp-accent-hover: #9a1a41; --cp-accent-soft: rgba(177,31,75,0.08); --cp-accent-fg: #ffffff;
+  --cp-success: #16a34a; --cp-danger: #dc2626; --cp-warning: #f59e0b; --cp-link: #0078d4;
+  --cp-shadow: 0 18px 48px rgba(0,0,0,0.12);
+  --cp-overlay: rgba(255,255,255,0.8); --cp-panel: rgba(255,255,255,0.86);
+  --cp-panel-strong: rgba(255,255,255,0.96); --cp-sheen: rgba(255,255,255,0.55);
+  --cp-highlight: rgba(177,31,75,0.12);
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --cp-bg: #3d3b3a; --cp-bg-elevated: #343231; --cp-surface: #292929; --cp-surface-soft: #2e2e2e;
+  --cp-border: #474747; --cp-border-strong: #5f5f5f;
+  --cp-text: #dedede; --cp-text-muted: #919191; --cp-text-soft: #b0b0b0;
+  --cp-accent: #fd8ea1; --cp-accent-hover: #fb7b91; --cp-accent-soft: rgba(253,142,161,0.14); --cp-accent-fg: #1a1a1a;
+  --cp-success: #4ade80; --cp-danger: #f87171; --cp-warning: #fbbf24; --cp-link: #4da6ff;
+  --cp-shadow: 0 18px 48px rgba(0,0,0,0.32);
+  --cp-overlay: rgba(41,41,41,0.88); --cp-panel: rgba(41,41,41,0.72);
+  --cp-panel-strong: rgba(41,41,41,0.96); --cp-sheen: rgba(255,255,255,0.04);
+  --cp-highlight: rgba(253,142,161,0.12);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body {
+  font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--cp-bg); color: var(--cp-text); overflow: hidden;
+  font-size: 13px; line-height: 1.4;
+}
+.mono { font-family: Consolas, "Courier New", Courier, monospace; }
+
+/* layout shell */
+.app { display: grid; grid-template-rows: 56px 28px 1fr; height: 100vh; }
+header.top {
+  display: flex; align-items: center; gap: 16px; padding: 0 16px;
+  background: var(--cp-bg-elevated); border-bottom: 1px solid var(--cp-border);
+}
+.brand { display:flex; align-items:center; gap:10px; font-weight:600; }
+.brand .logo {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: var(--cp-accent); color: var(--cp-accent-fg);
+  display:flex; align-items:center; justify-content:center; font-weight:800; letter-spacing:-0.5px;
+}
+.brand .title { font-size: 14px; }
+.brand .sub { font-size: 11px; color: var(--cp-text-muted); }
+
+.tabs { display: flex; gap: 4px; margin-left: 24px; }
+.tab {
+  padding: 6px 12px; border-radius: 0.625rem; cursor: pointer;
+  color: var(--cp-text-muted); border: 1px solid transparent; font-size: 12px;
+}
+.tab:hover { background: var(--cp-surface-soft); color: var(--cp-text); }
+.tab.active {
+  background: var(--cp-accent-soft); color: var(--cp-accent);
+  border-color: var(--cp-accent); font-weight: 600;
+}
+
+.top-right { margin-left:auto; display:flex; align-items:center; gap:14px; font-size:12px; }
+.clock { font-family: Consolas, monospace; color: var(--cp-text); }
+.market { display:flex; gap:6px; align-items:center; }
+.market .dot { width:8px;height:8px;border-radius:50%; background: var(--cp-success); box-shadow:0 0 8px var(--cp-success); animation: pulse 2s infinite;}
+.ticker-price { font-family: Consolas, monospace; }
+.ticker-up { color: var(--cp-success);} .ticker-dn { color: var(--cp-danger);}
+
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+.alert-bar {
+  background: var(--cp-surface); border-bottom: 1px solid var(--cp-border);
+  display:flex; align-items:center; overflow:hidden; font-size:12px;
+}
+.alert-bar .lbl {
+  background: var(--cp-danger); color: #fff; padding: 4px 10px; font-weight:700;
+  font-size: 11px; letter-spacing: 0.5px; flex-shrink:0;
+}
+.marquee { white-space: nowrap; overflow:hidden; flex:1; }
+.marquee-inner { display: inline-block; padding-left: 100%; animation: scroll 60s linear infinite; }
+.marquee-inner span { margin-right: 48px; color: var(--cp-text-soft); }
+.marquee-inner .crit { color: var(--cp-danger); font-weight: 600;}
+.marquee-inner .warn { color: var(--cp-warning); font-weight:600;}
+.marquee-inner .ok { color: var(--cp-success); }
+@keyframes scroll { 0%{transform:translateX(0);} 100%{transform:translateX(-100%);} }
+
+.main { display: grid; grid-template-columns: 260px 1fr; overflow: hidden; }
+aside.rail {
+  background: var(--cp-bg-elevated); border-right: 1px solid var(--cp-border);
+  padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;
+}
+.rail h4 { margin: 4px 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--cp-text-muted); }
+
+.kpi-mini {
+  background: var(--cp-surface); border: 1px solid var(--cp-border);
+  border-radius: 0.625rem; padding: 10px 12px; cursor: pointer; transition: 0.15s;
+}
+.kpi-mini:hover { border-color: var(--cp-accent); }
+.kpi-mini .lbl { font-size: 10px; color: var(--cp-text-muted); text-transform: uppercase; letter-spacing: 0.5px;}
+.kpi-mini .val { font-family: Consolas, monospace; font-size: 18px; font-weight: 700; margin-top: 2px;}
+.kpi-mini .delta { font-size: 11px; margin-top: 2px;}
+.up { color: var(--cp-success);} .dn { color: var(--cp-danger);} .neu { color: var(--cp-text-muted);}
+
+.alert {
+  background: var(--cp-surface); border-left: 3px solid var(--cp-border-strong);
+  border-radius: 6px; padding: 8px 10px; font-size: 12px;
+}
+.alert.crit { border-left-color: var(--cp-danger); }
+.alert.warn { border-left-color: var(--cp-warning); }
+.alert.info { border-left-color: var(--cp-link); }
+.alert .a-head { display:flex; justify-content:space-between; align-items:center; gap:6px; font-weight:600; font-size: 11px;}
+.alert .a-head .a-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
+.alert .a-meta { display:flex; align-items:center; gap:6px; flex-shrink:0;}
+.alert .a-time { color: var(--cp-text-muted); font-family: Consolas, monospace; font-weight: 400;}
+.alert .a-body { margin-top: 4px; color: var(--cp-text-soft); font-size: 11px;}
+.alert .ack {
+  background: transparent; border: 1px solid var(--cp-border);
+  color: var(--cp-text-muted); border-radius: 4px; padding: 1px 6px; cursor: pointer; font-size: 10px;
+}
+.alert .ack:hover { color: var(--cp-accent); border-color: var(--cp-accent);}
+.alert.acknowledged { opacity: 0.4; }
+
+main.content { overflow-y: auto; padding: 16px; }
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
+.grid { display: grid; gap: 12px;}
+.g-6 { grid-template-columns: repeat(6, 1fr); }
+.g-4 { grid-template-columns: repeat(4, 1fr); }
+.g-3 { grid-template-columns: repeat(3, 1fr); }
+.g-2 { grid-template-columns: repeat(2, 1fr); }
+.g-2-3 { grid-template-columns: 2fr 3fr;}
+.g-3-2 { grid-template-columns: 3fr 2fr;}
+
+.card {
+  background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 16px;
+  padding: 14px; box-shadow: 0 0 2px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.14);
+  min-height: 0;
+}
+.card h3 {
+  margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--cp-text-muted); display: flex; align-items: center; justify-content: space-between;
+}
+.card h3 .badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: var(--cp-accent-soft); color: var(--cp-accent); letter-spacing: 0;}
+
+.hero-kpi { padding: 14px;}
+.hero-kpi .lbl { font-size: 11px; color: var(--cp-text-muted); text-transform: uppercase; letter-spacing: 1px;}
+.hero-kpi .val { font-family: Consolas, monospace; font-size: 28px; font-weight: 700; margin-top: 4px;}
+.hero-kpi .sub { font-size: 11px; color: var(--cp-text-soft); margin-top: 2px;}
+.hero-kpi .spark { height: 32px; margin-top: 6px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 12px;}
+th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--cp-border);}
+th { font-size: 10px; text-transform: uppercase; color: var(--cp-text-muted); letter-spacing:0.5px; font-weight: 600;}
+td.num { font-family: Consolas, monospace; text-align: right;}
+.pill { display:inline-block; padding: 2px 8px; border-radius: 100px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;}
+.p-ok { background: rgba(74,222,128,0.15); color: var(--cp-success);}
+.p-wn { background: rgba(251,191,36,0.18); color: var(--cp-warning);}
+.p-dn { background: rgba(248,113,113,0.18); color: var(--cp-danger);}
+.p-nu { background: var(--cp-surface-soft); color: var(--cp-text-muted);}
+
+.bar { background: var(--cp-surface-soft); height: 6px; border-radius: 3px; overflow:hidden; margin-top: 4px;}
+.bar > div { height: 100%; background: var(--cp-success);}
+.bar.warn > div { background: var(--cp-warning);}
+.bar.dn > div { background: var(--cp-danger);}
+.bar.acc > div { background: var(--cp-accent);}
+
+/* Map */
+.map-wrap { position: relative; }
+.map-wrap svg { width: 100%; height: 320px;}
+.land { fill: var(--cp-surface-soft); stroke: var(--cp-border-strong); stroke-width: 0.8;}
+.plant {
+  cursor: pointer; transition: 0.2s;
+}
+.plant:hover { r: 9; }
+.plant.ok { fill: var(--cp-success); }
+.plant.wn { fill: var(--cp-warning); }
+.plant.dn { fill: var(--cp-danger); }
+.plant-ring { fill: none; stroke-width:1.5; opacity: 0.6;}
+.plant-ring.ok{stroke: var(--cp-success);} .plant-ring.wn{stroke: var(--cp-warning);} .plant-ring.dn{stroke: var(--cp-danger);}
+.plant-label { font-size: 9px; fill: var(--cp-text-muted); font-family: Consolas, monospace; pointer-events: none;}
+#mapTip {
+  position: absolute; background: var(--cp-panel-strong); border: 1px solid var(--cp-border);
+  border-radius: 8px; padding: 8px 10px; font-size: 11px; pointer-events: none;
+  display: none; box-shadow: var(--cp-shadow); min-width: 160px;
+}
+#mapTip h5 { margin: 0 0 4px; font-size: 12px;}
+#mapTip .mt-row { display: flex; justify-content: space-between; gap: 12px; font-family: Consolas, monospace; }
+#mapTip .mt-row span:last-child { color: var(--cp-text-muted);}
+
+/* gauges */
+.gauge { position: relative; text-align: center;}
+.gauge svg { width: 100px; height: 60px;}
+.gauge .gv { font-family: Consolas, monospace; font-weight: 700; font-size: 16px;}
+.gauge .gl { font-size: 10px; color: var(--cp-text-muted); text-transform: uppercase; letter-spacing: 0.5px;}
+
+/* gantt */
+.gantt { font-size: 11px;}
+.gantt-row { display: grid; grid-template-columns: 130px 1fr; align-items: center; padding: 4px 0; border-bottom: 1px dashed var(--cp-border);}
+.gantt-track { position: relative; height: 16px; background: var(--cp-surface-soft); border-radius: 4px;}
+.gantt-bar { position: absolute; top: 2px; height: 12px; border-radius: 3px;}
+.gantt-bar.planned { background: var(--cp-link);}
+.gantt-bar.forced { background: var(--cp-danger);}
+.gantt-bar.maint { background: var(--cp-warning);}
+
+/* kanban */
+.kanban { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;}
+.kcol { background: var(--cp-surface-soft); border-radius: 8px; padding: 6px; min-height: 200px;}
+.kcol h5 { margin: 4px 4px 8px; font-size: 11px; text-transform: uppercase; color: var(--cp-text-muted); display:flex; justify-content:space-between;}
+.kcard { background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 6px; padding: 6px 8px; margin-bottom: 6px; font-size: 11px;}
+.kcard .kt { font-weight: 600; }
+.kcard .kv { color: var(--cp-text-muted); font-family: Consolas, monospace; font-size: 10px;}
+
+/* heatmap */
+.heat { display: grid; gap: 2px;}
+.heat-row { display: grid; grid-template-columns: 110px repeat(12, 1fr); gap: 2px; align-items: center;}
+.heat-row .lbl { font-size: 10px; color: var(--cp-text-muted); text-transform: uppercase;}
+.heat-cell { aspect-ratio: 1; border-radius: 2px;}
+.h0 { background: var(--cp-surface-soft);}
+.h1 { background: rgba(74,222,128,0.4);}
+.h2 { background: rgba(251,191,36,0.5);}
+.h3 { background: rgba(248,113,113,0.55);}
+.h4 { background: var(--cp-danger);}
+
+/* risk matrix */
+.risk-mtx { display: grid; grid-template-columns: 60px repeat(5, 1fr); gap: 3px; }
+.risk-mtx .rh { font-size: 10px; color: var(--cp-text-muted); text-align:center; padding: 4px;}
+.risk-cell { aspect-ratio: 1.4; border-radius: 4px; position: relative; padding: 4px; font-size: 10px; color: var(--cp-accent-fg);}
+.rc-g { background: rgba(74,222,128,0.55);}
+.rc-y { background: rgba(251,191,36,0.6);}
+.rc-o { background: rgba(245,158,11,0.7);}
+.rc-r { background: rgba(248,113,113,0.75);}
+
+.list { list-style: none; padding: 0; margin: 0;}
+.list li { padding: 6px 0; border-bottom: 1px solid var(--cp-border); font-size: 12px; display: flex; justify-content: space-between; gap: 8px;}
+.list li:last-child { border-bottom: 0;}
+.list .meta { color: var(--cp-text-muted); font-family: Consolas, monospace; font-size: 11px;}
+
+.chart-wrap { position: relative; height: 180px; width: 100%; overflow: hidden;}
+.chart-wrap.sm { height: 140px;}
+.chart-wrap.lg { height: 240px;}
+.chart-wrap > canvas { position: absolute !important; inset: 0; width: 100% !important; height: 100% !important; }
+canvas.spark { width: 100% !important; height: 32px !important; display: block; }
+.hero-kpi { overflow: hidden; }
+.card { overflow: hidden; }
+.grid { min-width: 0; }
+.grid > * { min-width: 0; }
+
+.flex { display: flex;} .gap-8 { gap: 8px;} .gap-12 { gap: 12px;}
+.between { justify-content: space-between;} .center { align-items: center;}
+.col { flex-direction: column;}
+.muted { color: var(--cp-text-muted);}
+.small { font-size: 11px;}
+
+.live-dot { display:inline-block; width:6px; height:6px; border-radius:50%; background: var(--cp-success); margin-right: 4px; animation: pulse 1.5s infinite;}
+
+/* scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px;}
+::-webkit-scrollbar-track { background: transparent;}
+::-webkit-scrollbar-thumb { background: var(--cp-border); border-radius: 4px;}
+::-webkit-scrollbar-thumb:hover { background: var(--cp-border-strong);}
+
+/* card click affordance */
+.card { cursor: pointer; transition: border-color 0.15s, transform 0.15s; position: relative;}
+.card:hover { border-color: var(--cp-accent); }
+.card::after {
+  content: "↗"; position: absolute; top: 10px; right: 12px;
+  color: var(--cp-text-muted); font-size: 12px; opacity: 0; transition: 0.15s;
+}
+.card:hover::after { opacity: 0.7; }
+.kpi-mini { position: relative;}
+
+/* detail drawer */
+.drawer-bg {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+  display: none; z-index: 90; backdrop-filter: blur(2px);
+}
+.drawer-bg.show { display: block; animation: fadeIn 0.2s ease;}
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 540px; max-width: 95vw;
+  background: var(--cp-bg-elevated); border-left: 1px solid var(--cp-border);
+  box-shadow: var(--cp-shadow); z-index: 100; padding: 18px 20px;
+  overflow-y: auto; transform: translateX(100%); transition: transform 0.25s ease;
+}
+.drawer.show { transform: translateX(0); }
+.drawer-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--cp-border); margin-bottom: 14px;}
+.drawer-head h2 { margin: 0; font-size: 16px; color: var(--cp-text);}
+.drawer-head .sub { font-size: 11px; color: var(--cp-text-muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 1px;}
+.drawer .close { background: transparent; border: 1px solid var(--cp-border); color: var(--cp-text-muted); border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 12px;}
+.drawer .close:hover { color: var(--cp-accent); border-color: var(--cp-accent);}
+.drawer section { margin-bottom: 16px;}
+.drawer h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--cp-text-muted); margin: 0 0 8px;}
+.drawer p { margin: 0 0 8px; font-size: 13px; line-height: 1.55;}
+.drawer .stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;}
+.drawer .stat-box { background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 8px; padding: 8px 10px;}
+.drawer .stat-box .l { font-size: 10px; color: var(--cp-text-muted); text-transform: uppercase;}
+.drawer .stat-box .v { font-family: Consolas, monospace; font-size: 16px; font-weight: 700;}
+.drawer ul.actions { list-style: none; padding: 0; margin: 0;}
+.drawer ul.actions li { padding: 8px 10px; background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 6px; margin-bottom: 6px; font-size: 12px; border-left: 3px solid var(--cp-accent);}
+.drawer ul.actions li .own { color: var(--cp-text-muted); font-size: 11px; font-family: Consolas, monospace; margin-left: 6px;}
+
+@keyframes fadeIn { from { opacity: 0;} to { opacity: 1;}}
+
+.theme-toggle {
+  background: transparent; border: 1px solid var(--cp-border); color: var(--cp-text-muted);
+  border-radius: 6px; padding: 3px 8px; font-size: 11px; cursor: pointer;
+}
+.theme-toggle:hover { color: var(--cp-accent); border-color: var(--cp-accent);}
+</style>
+</head>
+<body>
+<div class="app">
+
+<header class="top">
+  <div class="brand">
+    <div class="logo">M</div>
+    <div>
+      <div class="title">MALAKOFF · CEO CONTROL CENTER</div>
+      <div class="sub">Executive War Room · Group HQ Kuala Lumpur</div>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs">
+    <div class="tab active" data-tab="overview">Overview</div>
+    <div class="tab" data-tab="ops">Operations</div>
+    <div class="tab" data-tab="fin">Financial</div>
+    <div class="tab" data-tab="esg">ESG &amp; Sustainability</div>
+    <div class="tab" data-tab="people">People &amp; Safety</div>
+    <div class="tab" data-tab="strat">Strategic Initiatives</div>
+  </nav>
+  <div class="top-right">
+    <div class="market"><span class="dot"></span>Bursa MLK <span class="ticker-price" id="mlkPx">0.685</span> <span class="ticker-up" id="mlkChg">+0.015 (+2.24%)</span></div>
+    <div class="clock mono" id="clock">--:--:-- MYT</div>
+    <button class="theme-toggle" id="themeBtn">☾ Dark</button>
+  </div>
+</header>
+
+<div class="alert-bar">
+  <div class="lbl">⚠ LIVE FEED</div>
+  <div class="marquee"><div class="marquee-inner" id="marquee">
+    <span class="crit">CRITICAL — KEV Unit 3 boiler tube leak detected, load reduced to 320 MW</span>
+    <span class="warn">Tanjung Bin coal stockpile at 18 days cover, below 21-day target</span>
+    <span class="ok">Shuaibah desal output 875,000 m³/day — within nomination</span>
+    <span>USD/MYR 4.71 · Newcastle coal $128.4/t · Brent $82.1</span>
+    <span class="warn">SEV Unit 1 derating 50 MW due to ambient temp; ISO derate within band</span>
+    <span class="ok">LSS4 Mukah commissioned 30 MW ahead of schedule</span>
+    <span>TNB receivables aging: 87% &lt; 30 days · SEC: 92% · EWA: 78%</span>
+    <span class="crit">Cyber: 3 phishing attempts blocked at gateway · SOC investigating</span>
+    <span class="ok">Hidd water 480,000 m³/day · power dispatch 880 MW</span>
+  </div></div>
+</div>
+
+<div class="main">
+  <aside class="rail">
+    <div>
+      <h4>Critical Alerts</h4>
+      <div id="alertsList"></div>
+    </div>
+    <div>
+      <h4>Quick KPIs</h4>
+      <div class="kpi-mini" data-drill="ops"><div class="lbl">Gen now (MW)</div><div class="val mono" id="kpiGen">6,842</div><div class="delta up">▲ 124 vs forecast</div></div>
+      <div class="kpi-mini" data-drill="ops"><div class="lbl">Availability</div><div class="val mono" id="kpiAv">91.4%</div><div class="delta dn">▼ 0.6 vs target</div></div>
+      <div class="kpi-mini" data-drill="fin"><div class="lbl">EBITDA YTD (RMm)</div><div class="val mono" id="kpiEb">1,842</div><div class="delta up">▲ 8.2% YoY</div></div>
+      <div class="kpi-mini" data-drill="people"><div class="lbl">LTI YTD</div><div class="val mono" id="kpiLti">2</div><div class="delta neu">vs 0 target</div></div>
+      <div class="kpi-mini" data-drill="fin"><div class="lbl">Share price (RM)</div><div class="val mono" id="kpiPx">0.685</div><div class="delta up">▲ 2.24%</div></div>
+    </div>
+    <div>
+      <h4>Today's Schedule</h4>
+      <ul class="list small">
+        <li><span>09:00 Board Risk Cmte</span><span class="meta">Lvl 12</span></li>
+        <li><span>11:00 TNB CEO call</span><span class="meta">PPA1</span></li>
+        <li><span>14:00 LSS5 bid review</span><span class="meta">Strategy</span></li>
+        <li><span>16:30 Investor Q1 prep</span><span class="meta">IR</span></li>
+      </ul>
+    </div>
+  </aside>
+
+  <main class="content">
+
+    <!-- =================== OVERVIEW =================== -->
+    <section class="tab-pane active" id="tab-overview">
+      <div class="grid g-6" style="margin-bottom: 12px;">
+        <div class="card hero-kpi"><div class="lbl">Net Generation YTD</div><div class="val">14,820 <span style="font-size:14px; color: var(--cp-text-muted);">GWh</span></div><div class="sub up">▲ 4.1% vs PY</div><canvas class="spark" id="sp1"></canvas></div>
+        <div class="card hero-kpi"><div class="lbl">Plant Availability</div><div class="val">91.4<span style="font-size:14px;">%</span></div><div class="sub dn">▼ 0.6 vs 92.0 tgt</div><canvas class="spark" id="sp2"></canvas></div>
+        <div class="card hero-kpi"><div class="lbl">Revenue YTD</div><div class="val">RM 5.84<span style="font-size:14px;">bn</span></div><div class="sub up">▲ 6.3% YoY</div><canvas class="spark" id="sp3"></canvas></div>
+        <div class="card hero-kpi"><div class="lbl">EBITDA Margin</div><div class="val">31.5<span style="font-size:14px;">%</span></div><div class="sub up">▲ 1.4pp YoY</div><canvas class="spark" id="sp4"></canvas></div>
+        <div class="card hero-kpi"><div class="lbl">Cash Position</div><div class="val">RM 1.92<span style="font-size:14px;">bn</span></div><div class="sub neu">stable</div><canvas class="spark" id="sp5"></canvas></div>
+        <div class="card hero-kpi"><div class="lbl">ESG Score</div><div class="val">A−</div><div class="sub up">MSCI ▲ 1 notch</div><canvas class="spark" id="sp6"></canvas></div>
+      </div>
+
+      <div class="grid g-3-2" style="margin-bottom: 12px;">
+        <div class="card">
+          <h3>Asset Map — Real-time Status <span class="badge"><span class="live-dot"></span>LIVE</span></h3>
+          <div class="map-wrap" id="mapWrap">
+            <svg viewBox="0 0 600 320" xmlns="http://www.w3.org/2000/svg">
+              <!-- Peninsular Malaysia (simplified) -->
+              <path class="land" d="M 230,40 L 245,55 L 255,80 L 250,110 L 260,140 L 270,170 L 265,200 L 255,225 L 245,250 L 230,265 L 220,260 L 215,240 L 210,210 L 215,180 L 210,150 L 205,120 L 210,90 L 220,60 Z"/>
+              <!-- Sabah/Sarawak (Borneo - simplified) -->
+              <path class="land" d="M 340,140 L 400,130 L 460,140 L 510,160 L 540,185 L 530,215 L 480,235 L 420,240 L 370,225 L 345,200 L 335,175 Z"/>
+              <!-- KSA placeholder -->
+              <path class="land" d="M 60,90 L 130,85 L 150,140 L 130,190 L 80,200 L 50,160 Z"/>
+              <text x="95" y="155" class="plant-label" style="font-size:11px;">KSA</text>
+              <!-- Bahrain placeholder -->
+              <path class="land" d="M 155,75 L 175,72 L 178,90 L 160,92 Z"/>
+              <text x="180" y="85" class="plant-label">BHR</text>
+              <text x="230" y="30" class="plant-label" style="font-size:11px;">MALAYSIA</text>
+
+              <g id="plantGroup"></g>
+            </svg>
+            <div id="mapTip"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Today at a Glance</h3>
+          <div class="grid g-2 gap-8" style="margin-bottom:10px;">
+            <div><div class="muted small">Grid demand (peak)</div><div class="mono" style="font-size:18px;font-weight:700;">19,420 MW</div></div>
+            <div><div class="muted small">Weather KL</div><div class="mono" style="font-size:18px;font-weight:700;">31°C ⛅</div></div>
+          </div>
+          <table>
+            <tr><th>Commodity</th><th class="num">Spot</th><th class="num">Δ d/d</th></tr>
+            <tr><td>Newcastle Coal</td><td class="num mono">$128.4/t</td><td class="num up">+1.2%</td></tr>
+            <tr><td>Brent Crude</td><td class="num mono">$82.1/bbl</td><td class="num dn">−0.4%</td></tr>
+            <tr><td>JKM LNG</td><td class="num mono">$11.8/mmbtu</td><td class="num up">+0.9%</td></tr>
+            <tr><td>USD/MYR</td><td class="num mono">4.7140</td><td class="num dn">−0.08%</td></tr>
+            <tr><td>SGD/MYR</td><td class="num mono">3.4815</td><td class="num neu">flat</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="grid g-2">
+        <div class="card">
+          <h3>Generation Mix (last 24h) <span class="badge">GWh</span></h3>
+          <div class="chart-wrap"><canvas id="genMix"></canvas></div>
+        </div>
+        <div class="card">
+          <h3>Incident Feed (24h)</h3>
+          <ul class="list" id="incidentFeed">
+            <li><span><span class="pill p-dn">CRIT</span> KEV U3 boiler tube leak — load 320 MW</span><span class="meta">07:42</span></li>
+            <li><span><span class="pill p-wn">WARN</span> Tg Bin coal cover &lt; 21 days</span><span class="meta">06:15</span></li>
+            <li><span><span class="pill p-ok">OK</span> LSS4 Mukah RC achieved</span><span class="meta">05:50</span></li>
+            <li><span><span class="pill p-wn">WARN</span> SEV U1 ambient derate 50 MW</span><span class="meta">04:20</span></li>
+            <li><span><span class="pill p-nu">INFO</span> Shuaibah PPA invoice raised SAR 412m</span><span class="meta">03:00</span></li>
+            <li><span><span class="pill p-dn">CYBER</span> 3 phishing attempts blocked</span><span class="meta">02:14</span></li>
+            <li><span><span class="pill p-ok">OK</span> Hidd full dispatch 929 MW</span><span class="meta">01:05</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================== OPERATIONS =================== -->
+    <section class="tab-pane" id="tab-ops">
+      <div class="grid g-2-3" style="margin-bottom: 12px;">
+        <div class="card">
+          <h3>Plant Status <span class="badge"><span class="live-dot"></span>LIVE</span></h3>
+          <table id="plantTable">
+            <thead><tr><th>Asset</th><th class="num">Cap MW</th><th class="num">Gen MW</th><th class="num">Avail</th><th>Status</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h3>Grid Frequency &amp; Dispatch</h3>
+          <div class="chart-wrap lg"><canvas id="freqChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="grid g-3" style="margin-bottom: 12px;">
+        <div class="card">
+          <h3>Availability vs Target</h3>
+          <div class="grid g-3 gap-8" id="gauges"></div>
+        </div>
+        <div class="card">
+          <h3>Fuel Stockpile (days cover)</h3>
+          <div class="small" style="margin-bottom:6px;">
+            <div class="flex between"><span>Tg Bin Coal</span><span class="mono">18 / 21d</span></div>
+            <div class="bar warn"><div style="width:85%"></div></div>
+          </div>
+          <div class="small" style="margin-bottom:6px;">
+            <div class="flex between"><span>TBE Coal</span><span class="mono">24 / 21d</span></div>
+            <div class="bar"><div style="width:100%"></div></div>
+          </div>
+          <div class="small" style="margin-bottom:6px;">
+            <div class="flex between"><span>KEV Coal</span><span class="mono">12 / 21d</span></div>
+            <div class="bar dn"><div style="width:57%"></div></div>
+          </div>
+          <div class="small" style="margin-bottom:6px;">
+            <div class="flex between"><span>Prai Gas (MMSCFD nom)</span><span class="mono">62 / 65</span></div>
+            <div class="bar warn"><div style="width:95%"></div></div>
+          </div>
+          <div class="small" style="margin-bottom:6px;">
+            <div class="flex between"><span>GB3 Gas nom</span><span class="mono">110 / 110</span></div>
+            <div class="bar"><div style="width:100%"></div></div>
+          </div>
+          <div class="small">
+            <div class="flex between"><span>SEV Gas nom</span><span class="mono">235 / 240</span></div>
+            <div class="bar"><div style="width:98%"></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Water Production (IWPP)</h3>
+          <table>
+            <tr><th>Asset</th><th class="num">m³/day</th><th class="num">Target</th><th>Status</th></tr>
+            <tr><td>Shuaibah KSA</td><td class="num mono">875,000</td><td class="num mono">880,000</td><td><span class="pill p-ok">OK</span></td></tr>
+            <tr><td>Hidd Bahrain</td><td class="num mono">480,000</td><td class="num mono">480,000</td><td><span class="pill p-ok">OK</span></td></tr>
+            <tr><td>Az Zour (legacy)</td><td class="num mono">—</td><td class="num mono">—</td><td><span class="pill p-nu">N/A</span></td></tr>
+          </table>
+          <div class="chart-wrap sm" style="margin-top:8px;"><canvas id="waterChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Outage Tracker — Next 14 days</h3>
+        <div class="gantt">
+          <div class="gantt-row" style="border-bottom: 1px solid var(--cp-border); font-weight:600;">
+            <div class="small muted">UNIT</div>
+            <div class="small muted flex between" style="padding: 0 4px;"><span>Today</span><span>+3d</span><span>+7d</span><span>+10d</span><span>+14d</span></div>
+          </div>
+          <div class="gantt-row"><div>Tg Bin U2 — Planned C-insp</div><div class="gantt-track"><div class="gantt-bar planned" style="left:14%;width:35%;" title="Planned 5d"></div></div></div>
+          <div class="gantt-row"><div>KEV U3 — Forced (boiler)</div><div class="gantt-track"><div class="gantt-bar forced" style="left:0%;width:18%;"></div></div></div>
+          <div class="gantt-row"><div>GB3 — Maint window</div><div class="gantt-track"><div class="gantt-bar maint" style="left:50%;width:14%;"></div></div></div>
+          <div class="gantt-row"><div>SEV U1 — Hot gas path</div><div class="gantt-track"><div class="gantt-bar planned" style="left:65%;width:25%;"></div></div></div>
+          <div class="gantt-row"><div>Prai — Filter swap</div><div class="gantt-track"><div class="gantt-bar maint" style="left:30%;width:8%;"></div></div></div>
+          <div class="gantt-row"><div>TBE U1 — Inspection</div><div class="gantt-track"><div class="gantt-bar planned" style="left:80%;width:18%;"></div></div></div>
+        </div>
+        <div class="flex gap-12 small muted" style="margin-top:8px;">
+          <span><span style="display:inline-block;width:10px;height:10px;background:var(--cp-link);border-radius:2px;"></span> Planned</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:var(--cp-warning);border-radius:2px;"></span> Maintenance</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:var(--cp-danger);border-radius:2px;"></span> Forced</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================== FINANCIAL =================== -->
+    <section class="tab-pane" id="tab-fin">
+      <div class="grid g-4" style="margin-bottom: 12px;">
+        <div class="card hero-kpi"><div class="lbl">Revenue YTD</div><div class="val">RM 5.84bn</div><div class="sub up">Bgt 5.65bn · ▲ 3.4%</div></div>
+        <div class="card hero-kpi"><div class="lbl">EBITDA YTD</div><div class="val">RM 1.84bn</div><div class="sub up">Bgt 1.78bn · ▲ 3.4%</div></div>
+        <div class="card hero-kpi"><div class="lbl">PATAMI YTD</div><div class="val">RM 312m</div><div class="sub up">Bgt 285m · ▲ 9.5%</div></div>
+        <div class="card hero-kpi"><div class="lbl">OCF YTD</div><div class="val">RM 1.42bn</div><div class="sub dn">Bgt 1.55bn · ▼ 8.4%</div></div>
+      </div>
+
+      <div class="grid g-2" style="margin-bottom: 12px;">
+        <div class="card">
+          <h3>Revenue · EBITDA · PATAMI — YTD vs Budget vs PY</h3>
+          <div class="chart-wrap lg"><canvas id="finBar"></canvas></div>
+        </div>
+        <div class="card">
+          <h3>Segment Contribution (EBITDA RMm)</h3>
+          <div class="chart-wrap lg"><canvas id="segDonut"></canvas></div>
+        </div>
+      </div>
+
+      <div class="grid g-3" style="margin-bottom: 12px;">
+        <div class="card">
+          <h3>Receivables Aging</h3>
+          <table>
+            <tr><th>Off-taker</th><th class="num">RMm</th><th class="num">&lt;30d</th><th class="num">30-90d</th><th class="num">&gt;90d</th></tr>
+            <tr><td>TNB (Malaysia)</td><td class="num mono">1,420</td><td class="num up">87%</td><td class="num">11%</td><td class="num dn">2%</td></tr>
+            <tr><td>SEC (KSA)</td><td class="num mono">485</td><td class="num up">92%</td><td class="num">8%</td><td class="num">0%</td></tr>
+            <tr><td>EWA (Bahrain)</td><td class="num mono">312</td><td class="num">78%</td><td class="num">18%</td><td class="num dn">4%</td></tr>
+            <tr><td>Others</td><td class="num mono">68</td><td class="num">81%</td><td class="num">15%</td><td class="num">4%</td></tr>
+            <tr style="font-weight:600;"><td>Total</td><td class="num mono">2,285</td><td class="num up">86%</td><td class="num">12%</td><td class="num dn">2%</td></tr>
+          </table>
+        </div>
+        <div class="card">
+          <h3>Capex Burn vs Plan (RMm)</h3>
+          <div class="chart-wrap"><canvas id="capexChart"></canvas></div>
+        </div>
+        <div class="card">
+          <h3>Debt Maturity Ladder (RMm)</h3>
+          <div class="chart-wrap"><canvas id="debtChart"></canvas></div>
+          <div class="flex between small" style="margin-top:6px;">
+            <div><div class="muted">Gearing</div><div class="mono" style="font-weight:700;">1.84x</div></div>
+            <div><div class="muted">Interest cover</div><div class="mono" style="font-weight:700;">3.2x</div></div>
+            <div><div class="muted">Cost of debt</div><div class="mono" style="font-weight:700;">4.85%</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>MLK Share Price &amp; Analyst Consensus</h3>
+        <div class="flex between" style="margin-bottom:8px;">
+          <div class="flex gap-12">
+            <div><div class="muted small">Last</div><div class="mono" style="font-size:18px;font-weight:700;">RM 0.685</div></div>
+            <div><div class="muted small">52w H/L</div><div class="mono" style="font-size:14px;">0.745 / 0.520</div></div>
+            <div><div class="muted small">Mkt cap</div><div class="mono" style="font-size:14px;">RM 3.34bn</div></div>
+            <div><div class="muted small">P/E</div><div class="mono" style="font-size:14px;">14.2x</div></div>
+            <div><div class="muted small">Div yield</div><div class="mono" style="font-size:14px;">5.1%</div></div>
+          </div>
+          <div class="flex gap-8">
+            <span class="pill p-ok">BUY 6</span>
+            <span class="pill p-wn">HOLD 3</span>
+            <span class="pill p-dn">SELL 1</span>
+            <span class="muted small">TP RM 0.78</span>
+          </div>
+        </div>
+        <div class="chart-wrap"><canvas id="pxChart"></canvas></div>
+      </div>
+    </section>
+
+    <!-- =================== ESG =================== -->
+    <section class="tab-pane" id="tab-esg">
+      <div class="grid g-4" style="margin-bottom: 12px;">
+        <div class="card hero-kpi"><div class="lbl">CO₂ Intensity</div><div class="val">0.78<span style="font-size:14px;">tCO₂/MWh</span></div><div class="sub up">▼ 3.1% YoY · on glidepath</div></div>
+        <div class="card hero-kpi"><div class="lbl">RE Capacity</div><div class="val">412 <span style="font-size:14px;">MW</span></div><div class="sub neu">29% of 1.4 GW (2031)</div></div>
+        <div class="card hero-kpi"><div class="lbl">Water Intensity</div><div class="val">1.42 <span style="font-size:14px;">L/kWh</span></div><div class="sub up">▼ 5% YoY</div></div>
+        <div class="card hero-kpi"><div class="lbl">Ash Utilization</div><div class="val">68<span style="font-size:14px;">%</span></div><div class="sub up">▲ 4pp YoY</div></div>
+      </div>
+
+      <div class="grid g-2" style="margin-bottom: 12px;">
+        <div class="card">
+          <h3>CO₂ Intensity vs Net-Zero 2050 Glidepath</h3>
+          <div class="chart-wrap lg"><canvas id="co2Chart"></canvas></div>
+        </div>
+        <div class="card">
+          <h3>RE Capacity Pipeline — Path to 1.4 GW by 2031</h3>
+          <div class="chart-wrap lg"><canvas id="reChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="grid g-3">
+        <div class="card">
+          <h3>ESG Rating Snapshot</h3>
+          <table>
+            <tr><th>Agency</th><th>Rating</th><th>Trend</th></tr>
+            <tr><td>MSCI</td><td><span class="pill p-ok">A−</span></td><td class="up">▲ 1 notch</td></tr>
+            <tr><td>FTSE4Good</td><td><span class="pill p-ok">3.4 / 5</span></td><td class="up">▲ 0.2</td></tr>
+            <tr><td>Sustainalytics</td><td><span class="pill p-wn">Medium 24.1</span></td><td class="neu">stable</td></tr>
+            <tr><td>CDP Climate</td><td><span class="pill p-wn">B</span></td><td class="up">▲ from B−</td></tr>
+            <tr><td>S&amp;P CSA</td><td><span class="pill p-ok">62 / 100</span></td><td class="up">▲ 4</td></tr>
+          </table>
+        </div>
+        <div class="card">
+          <h3>Alam Flora — Waste &amp; Recycling</h3>
+          <div class="small" style="margin-bottom:8px;"><div class="flex between"><span>Recycling rate</span><span class="mono">31.2%</span></div><div class="bar acc"><div style="width:62%"></div></div></div>
+          <div class="small" style="margin-bottom:8px;"><div class="flex between"><span>Waste collected (t/day)</span><span class="mono">8,420</span></div></div>
+          <div class="small" style="margin-bottom:8px;"><div class="flex between"><span>Fleet EV %</span><span class="mono">14%</span></div><div class="bar warn"><div style="width:14%"></div></div></div>
+          <div class="small"><div class="flex between"><span>Landfill diversion</span><span class="mono">42%</span></div><div class="bar"><div style="width:42%"></div></div></div>
+        </div>
+        <div class="card">
+          <h3>Regulatory Compliance Heatmap</h3>
+          <div class="heat" id="complianceHeat"></div>
+          <div class="small muted" style="margin-top:6px;">12-month rolling · darker = non-compliance events</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================== PEOPLE & SAFETY =================== -->
+    <section class="tab-pane" id="tab-people">
+      <div class="grid g-4" style="margin-bottom: 12px;">
+        <div class="card hero-kpi"><div class="lbl">LTIFR (12m)</div><div class="val">0.42</div><div class="sub up">▼ 0.08 vs PY · tgt 0.30</div></div>
+        <div class="card hero-kpi"><div class="lbl">TRIFR (12m)</div><div class="val">1.18</div><div class="sub up">▼ 0.21 vs PY</div></div>
+        <div class="card hero-kpi"><div class="lbl">Headcount</div><div class="val">2,184</div><div class="sub neu">88% Malaysian</div></div>
+        <div class="card hero-kpi"><div class="lbl">Attrition (rolling)</div><div class="val">8.4<span style="font-size:14px;">%</span></div><div class="sub dn">▲ 1.2pp vs PY</div></div>
+      </div>
+
+      <div class="grid g-2" style="margin-bottom: 12px;">
+        <div class="card">
+          <h3>LTIFR / TRIFR Trend (12m)</h3>
+          <div class="chart-wrap lg"><canvas id="safetyChart"></canvas></div>
+        </div>
+        <div class="card">
+          <h3>Headcount by Segment</h3>
+          <div class="chart-wrap lg"><canvas id="hcChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="grid g-3">
+        <div class="card">
+          <h3>Open Safety Observations</h3>
+          <ul class="list">
+            <li><span><span class="pill p-dn">HIGH</span> Tg Bin — confined space PTW gap</span><span class="meta">open 4d</span></li>
+            <li><span><span class="pill p-wn">MED</span> KEV — scaffold tag missing</span><span class="meta">open 2d</span></li>
+            <li><span><span class="pill p-wn">MED</span> SEV — hot work near oil</span><span class="meta">open 1d</span></li>
+            <li><span><span class="pill p-ok">LOW</span> Prai — PPE compliance audit</span><span class="meta">open 6d</span></li>
+            <li><span><span class="pill p-dn">HIGH</span> Hidd — work-at-height near miss</span><span class="meta">open 3d</span></li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Training &amp; Capability</h3>
+          <div class="small" style="margin-bottom:8px;"><div class="flex between"><span>Avg training hours / FTE</span><span class="mono">42.6 / 40 tgt</span></div><div class="bar"><div style="width:100%"></div></div></div>
+          <div class="small" style="margin-bottom:8px;"><div class="flex between"><span>Leadership Acad enrolled</span><span class="mono">84</span></div></div>
+          <div class="small" style="margin-bottom:8px;"><div class="flex between"><span>Tech competency cert</span><span class="mono">91%</span></div><div class="bar"><div style="width:91%"></div></div></div>
+          <div class="small" style="margin-bottom:8px;"><div class="flex between"><span>Female mgmt %</span><span class="mono">27%</span></div><div class="bar warn"><div style="width:54%"></div></div></div>
+          <div class="small"><div class="flex between"><span>Engagement score</span><span class="mono">78 / 100</span></div><div class="bar acc"><div style="width:78%"></div></div></div>
+        </div>
+        <div class="card">
+          <h3>Leadership Pipeline Readiness</h3>
+          <table>
+            <tr><th>Role</th><th>Ready now</th><th>1-2y</th><th>3-5y</th></tr>
+            <tr><td>CEO</td><td><span class="pill p-wn">1</span></td><td>2</td><td>1</td></tr>
+            <tr><td>COO</td><td><span class="pill p-ok">2</span></td><td>3</td><td>2</td></tr>
+            <tr><td>CFO</td><td><span class="pill p-ok">2</span></td><td>2</td><td>3</td></tr>
+            <tr><td>CHRO</td><td><span class="pill p-wn">1</span></td><td>2</td><td>2</td></tr>
+            <tr><td>CTO/Strategy</td><td><span class="pill p-dn">0</span></td><td>1</td><td>3</td></tr>
+            <tr><td>Plant GMs (avg)</td><td><span class="pill p-ok">1.8</span></td><td>2.2</td><td>2.6</td></tr>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================== STRATEGIC =================== -->
+    <section class="tab-pane" id="tab-strat">
+      <div class="grid g-2" style="margin-bottom: 12px;">
+        <div class="card">
+          <h3>Decarbonization Roadmap</h3>
+          <div class="chart-wrap lg"><canvas id="decarbChart"></canvas></div>
+          <div class="small muted">Target: 1.4 GW RE by 2031 · Net-zero 2050 · 50% emissions reduction by 2035</div>
+        </div>
+        <div class="card">
+          <h3>Top-10 Enterprise Risks (Heatmap)</h3>
+          <div class="risk-mtx" id="riskMatrix"></div>
+          <div class="flex between small muted" style="margin-top:8px;">
+            <span>Likelihood →</span><span>↑ Impact</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom: 12px;">
+        <h3>M&amp;A / Project Pipeline</h3>
+        <div class="kanban">
+          <div class="kcol"><h5>Origination <span>4</span></h5>
+            <div class="kcard"><div class="kt">Floating solar JV Vietnam</div><div class="kv">~120 MW · USD 95m</div></div>
+            <div class="kcard"><div class="kt">Hybrid wind+solar Sabah</div><div class="kv">200 MW · MYR 850m</div></div>
+            <div class="kcard"><div class="kt">Hydrogen pilot — TBP</div><div class="kv">co-firing 5% NH₃</div></div>
+            <div class="kcard"><div class="kt">EV charging — Alam Flora</div><div class="kv">120 sites Klang V</div></div>
+          </div>
+          <div class="kcol"><h5>Due Diligence <span>3</span></h5>
+            <div class="kcard"><div class="kt">Indon CCGT acq target</div><div class="kv">660 MW · USD 410m</div></div>
+            <div class="kcard"><div class="kt">Battery storage — LSS pair</div><div class="kv">100 MWh · MYR 280m</div></div>
+            <div class="kcard"><div class="kt">UAE desal expansion</div><div class="kv">200k m³/day · USD 220m</div></div>
+          </div>
+          <div class="kcol"><h5>Negotiation <span>2</span></h5>
+            <div class="kcard"><div class="kt">LSS5 bid — Bidor</div><div class="kv">100 MW · MYR 410m</div></div>
+            <div class="kcard"><div class="kt">CGPP corporate PPAs</div><div class="kv">3 offtakers · 80 MW</div></div>
+          </div>
+          <div class="kcol"><h5>Signed / Execution <span>3</span></h5>
+            <div class="kcard"><div class="kt">LSS4 Mukah</div><div class="kv">30 MW · ✓ COD</div></div>
+            <div class="kcard"><div class="kt">Kapar repowering MoU</div><div class="kv">800 MW CCGT</div></div>
+            <div class="kcard"><div class="kt">Shuaibah-3 RE retrofit</div><div class="kv">PV 200 MW</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid g-3">
+        <div class="card">
+          <h3>LSS5 / CGPP Bid Tracker</h3>
+          <table>
+            <tr><th>Site</th><th class="num">MW</th><th>Status</th><th class="num">Tariff sen/kWh</th></tr>
+            <tr><td>Bidor, Perak</td><td class="num mono">100</td><td><span class="pill p-wn">BID IN</span></td><td class="num mono">19.8</td></tr>
+            <tr><td>Pahang Hub</td><td class="num mono">50</td><td><span class="pill p-ok">SHORTLIST</span></td><td class="num mono">20.4</td></tr>
+            <tr><td>Johor Estate</td><td class="num mono">80</td><td><span class="pill p-nu">PREP</span></td><td class="num mono">—</td></tr>
+            <tr><td>CGPP Corp PPA A</td><td class="num mono">30</td><td><span class="pill p-ok">AWARDED</span></td><td class="num mono">22.5</td></tr>
+            <tr><td>CGPP Corp PPA B</td><td class="num mono">50</td><td><span class="pill p-wn">NEGO</span></td><td class="num mono">21.8</td></tr>
+          </table>
+        </div>
+        <div class="card">
+          <h3>Key Stakeholder Engagements (30d)</h3>
+          <ul class="list">
+            <li><span>Tenaga Nasional — PPA1 renewal</span><span class="meta">in prog</span></li>
+            <li><span>Energy Commission (EC)</span><span class="meta">5 mtgs</span></li>
+            <li><span>KETSA Minister</span><span class="meta">brief 12 Mar</span></li>
+            <li><span>SEC Saudi</span><span class="meta">QBR done</span></li>
+            <li><span>EWA Bahrain</span><span class="meta">tariff rev</span></li>
+            <li><span>MoF — sukuk dialogue</span><span class="meta">scheduled</span></li>
+            <li><span>Khazanah / EPF (shareholders)</span><span class="meta">strat upd</span></li>
+            <li><span>Bursa Listing div</span><span class="meta">Q reports</span></li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Innovation &amp; Digital</h3>
+          <div class="small" style="margin-bottom:8px;"><div class="flex between"><span>Digital twin coverage (plants)</span><span class="mono">4 / 6</span></div><div class="bar acc"><div style="width:67%"></div></div></div>
+          <div class="small" style="margin-bottom:8px;"><div class="flex between"><span>Predictive maint savings YTD</span><span class="mono">RM 18m</span></div></div>
+          <div class="small" style="margin-bottom:8px;"><div class="flex between"><span>Cyber maturity (NIST)</span><span class="mono">3.4 / 5</span></div><div class="bar warn"><div style="width:68%"></div></div></div>
+          <div class="small" style="margin-bottom:8px;"><div class="flex between"><span>AI use-cases in prod</span><span class="mono">9</span></div></div>
+          <div class="small"><div class="flex between"><span>Cloud migration</span><span class="mono">62%</span></div><div class="bar"><div style="width:62%"></div></div></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+</div>
+
+<div class="drawer-bg" id="drawerBg"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true">
+  <div class="drawer-head">
+    <div>
+      <div class="sub" id="drwSub">DETAIL</div>
+      <h2 id="drwTitle">—</h2>
+    </div>
+    <button class="close" id="drwClose">✕ Close</button>
+  </div>
+  <div id="drwBody"></div>
+</aside>
+
+<script>
+/* ============ DATA ============ */
+const plants = [
+  {id:'TBP', name:'Tanjung Bin Power', cap:2100, gen:1980, av:94.3, status:'ok', x:225, y:240, fuel:'Coal'},
+  {id:'TBE', name:'Tanjung Bin Energy', cap:1000, gen:945, av:92.8, status:'ok', x:228, y:255, fuel:'Coal'},
+  {id:'GB3', name:'GB3 Manjung', cap:640, gen:612, av:95.6, status:'ok', x:218, y:170, fuel:'Gas CCGT'},
+  {id:'PRA', name:'Prai Power', cap:350, gen:330, av:92.1, status:'ok', x:215, y:110, fuel:'Gas CCGT'},
+  {id:'SEV', name:'SEV Segari', cap:1303, gen:1180, av:88.4, status:'wn', x:215, y:155, fuel:'Gas CCGT'},
+  {id:'KEV', name:'Kapar Energy', cap:2420, gen:1680, av:78.2, status:'dn', x:220, y:205, fuel:'Multi-fuel'},
+  {id:'SHU', name:'Shuaibah IWPP', cap:900, gen:880, av:96.1, status:'ok', x:95, y:140, fuel:'Oil + Desal'},
+  {id:'HID', name:'Hidd IWPP', cap:929, gen:880, av:94.8, status:'ok', x:168, y:82, fuel:'Gas + Desal'},
+  {id:'LSS', name:'LSS Solar Portfolio', cap:182, gen:128, av:71.0, status:'wn', x:240, y:185, fuel:'Solar PV'},
+];
+
+const initialAlerts = [
+  {sev:'crit', src:'KEV', title:'KEV U3 Boiler Tube Leak', body:'Load reduced to 320 MW; repair team mobilised', time:'07:42'},
+  {sev:'warn', src:'TBP', title:'Coal stockpile < 21d', body:'Tg Bin coal cover 18 days; replenishment ETA 4 days', time:'06:15'},
+  {sev:'crit', src:'CYBER', title:'Phishing campaign blocked', body:'3 attempts targeting finance; SOC investigating', time:'02:14'},
+  {sev:'warn', src:'SEV', title:'SEV U1 ambient derate', body:'50 MW derate; within ISO band', time:'04:20'},
+  {sev:'info', src:'LSS', title:'LSS4 Mukah COD achieved', body:'30 MW solar — ahead of schedule', time:'05:50'},
+];
+
+/* ============ CLOCK & TICKER ============ */
+function tick() {
+  const now = new Date();
+  const opts = {timeZone:'Asia/Kuala_Lumpur', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false};
+  document.getElementById('clock').textContent = now.toLocaleTimeString('en-GB', opts) + ' MYT';
+}
+setInterval(tick, 1000); tick();
+
+/* ============ THEME TOGGLE ============ */
+document.getElementById('themeBtn').addEventListener('click', () => {
+  const cur = document.documentElement.getAttribute('data-theme');
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  document.getElementById('themeBtn').textContent = next === 'dark' ? '☾ Dark' : '☀ Light';
+  // Re-render charts to pick up new colors
+  Object.values(charts).forEach(c => c && c.update());
+});
+
+/* ============ TABS ============ */
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => switchTab(t.dataset.tab));
+});
+document.querySelectorAll('.kpi-mini').forEach(k => {
+  k.addEventListener('click', () => switchTab(k.dataset.drill));
+});
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x.dataset.tab === name));
+  document.querySelectorAll('.tab-pane').forEach(x => x.classList.toggle('active', x.id === 'tab-' + name));
+}
+
+/* ============ ALERTS ============ */
+function renderAlerts() {
+  const html = initialAlerts.map((a,i) => `
+    <div class="alert ${a.sev}" data-i="${i}">
+      <div class="a-head">
+        <span class="a-title">${a.src} · ${a.title}</span>
+        <span class="a-meta">
+          <span class="a-time">${a.time}</span>
+          <button class="ack" data-ack="${i}">ack</button>
+        </span>
+      </div>
+      <div class="a-body">${a.body}</div>
+    </div>`).join('');
+  document.getElementById('alertsList').innerHTML = html;
+  document.querySelectorAll('[data-ack]').forEach(b => {
+    b.addEventListener('click', e => {
+      e.stopPropagation();
+      b.closest('.alert').classList.add('acknowledged');
+    });
+  });
+}
+renderAlerts();
+
+/* ============ MAP ============ */
+const pg = document.getElementById('plantGroup');
+plants.forEach(p => {
+  const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+  g.innerHTML = `
+    <circle class="plant-ring ${p.status}" cx="${p.x}" cy="${p.y}" r="11">
+      <animate attributeName="r" values="11;15;11" dur="2s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.6;0;0.6" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <circle class="plant ${p.status}" cx="${p.x}" cy="${p.y}" r="6" data-id="${p.id}"></circle>
+    <text class="plant-label" x="${p.x + 8}" y="${p.y - 6}">${p.id}</text>`;
+  pg.appendChild(g);
+});
+const tip = document.getElementById('mapTip');
+const mapWrap = document.getElementById('mapWrap');
+document.querySelectorAll('.plant').forEach(el => {
+  el.addEventListener('mousemove', e => {
+    const p = plants.find(x => x.id === el.dataset.id);
+    const rect = mapWrap.getBoundingClientRect();
+    tip.style.display = 'block';
+    tip.style.left = (e.clientX - rect.left + 12) + 'px';
+    tip.style.top = (e.clientY - rect.top + 12) + 'px';
+    tip.innerHTML = `
+      <h5>${p.name}</h5>
+      <div class="mt-row"><span>Capacity</span><span>${p.cap} MW</span></div>
+      <div class="mt-row"><span>Generation</span><span>${p.gen} MW</span></div>
+      <div class="mt-row"><span>Availability</span><span>${p.av.toFixed(1)}%</span></div>
+      <div class="mt-row"><span>Fuel</span><span>${p.fuel}</span></div>
+      <div class="mt-row"><span>Status</span><span style="color: var(--cp-${p.status==='ok'?'success':p.status==='wn'?'warning':'danger'})">${p.status==='ok'?'ONLINE':p.status==='wn'?'DERATE':'ALERT'}</span></div>`;
+  });
+  el.addEventListener('mouseleave', () => tip.style.display = 'none');
+});
+
+/* ============ PLANT TABLE ============ */
+function renderPlantTable() {
+  const tb = document.querySelector('#plantTable tbody');
+  tb.innerHTML = plants.map(p => {
+    const pillCls = p.status==='ok'?'p-ok':p.status==='wn'?'p-wn':'p-dn';
+    const stTxt = p.status==='ok'?'ONLINE':p.status==='wn'?'DERATE':'ALERT';
+    return `<tr>
+      <td>${p.name}</td>
+      <td class="num mono">${p.cap.toLocaleString()}</td>
+      <td class="num mono">${Math.round(p.gen).toLocaleString()}</td>
+      <td class="num mono">${p.av.toFixed(1)}%</td>
+      <td><span class="pill ${pillCls}">${stTxt}</span></td>
+    </tr>`;
+  }).join('');
+}
+renderPlantTable();
+
+/* ============ GAUGES ============ */
+const gaugeHolder = document.getElementById('gauges');
+plants.slice(0,6).forEach(p => {
+  const pct = Math.min(100, p.av);
+  const angle = (pct/100) * 180;
+  const x = 50 + 40 * Math.cos(Math.PI - (angle * Math.PI/180));
+  const y = 50 - 40 * Math.sin(Math.PI - (angle * Math.PI/180));
+  const col = p.status==='ok'?'var(--cp-success)':p.status==='wn'?'var(--cp-warning)':'var(--cp-danger)';
+  const div = document.createElement('div');
+  div.className = 'gauge';
+  div.innerHTML = `
+    <svg viewBox="0 0 100 60">
+      <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="var(--cp-surface-soft)" stroke-width="8"/>
+      <path d="M 10 50 A 40 40 0 0 1 ${x} ${y}" fill="none" stroke="${col}" stroke-width="8" stroke-linecap="round"/>
+    </svg>
+    <div class="gv" style="color:${col}">${p.av.toFixed(1)}%</div>
+    <div class="gl">${p.id}</div>`;
+  gaugeHolder.appendChild(div);
+});
+
+/* ============ CHARTS ============ */
+const charts = {};
+function cpColor(name) { return getComputedStyle(document.documentElement).getPropertyValue('--cp-'+name).trim(); }
+
+function spark(id, data, color) {
+  const ctx = document.getElementById(id);
+  charts[id] = new Chart(ctx, {
+    type:'line',
+    data:{ labels:data.map((_,i)=>i), datasets:[{ data, borderColor: color, backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0.35, fill:false}]},
+    options:{ plugins:{legend:{display:false}, tooltip:{enabled:false}}, scales:{x:{display:false}, y:{display:false}}, animation:false, maintainAspectRatio:false }
+  });
+}
+function rnd(n,a){return Array.from({length:n},()=>a+Math.random()*(a*0.08));}
+spark('sp1', rnd(20,14000), 'rgb(74,222,128)');
+spark('sp2', rnd(20,91), 'rgb(251,191,36)');
+spark('sp3', rnd(20,5800), 'rgb(74,222,128)');
+spark('sp4', rnd(20,31), 'rgb(74,222,128)');
+spark('sp5', rnd(20,1900), 'rgb(77,166,255)');
+spark('sp6', rnd(20,70), 'rgb(253,142,161)');
+
+Chart.defaults.color = 'rgba(180,180,180,0.85)';
+Chart.defaults.borderColor = 'rgba(120,120,120,0.18)';
+Chart.defaults.font.family = '"Segoe UI", Aptos, Calibri, sans-serif';
+
+/* Gen mix overview */
+charts.gen = new Chart(document.getElementById('genMix'), {
+  type:'bar',
+  data:{
+    labels:Array.from({length:24},(_,i)=>i+':00'),
+    datasets:[
+      {label:'Coal', data: rnd(24,3.6), backgroundColor:'rgba(248,113,113,0.7)', stack:'g'},
+      {label:'Gas', data: rnd(24,2.8), backgroundColor:'rgba(77,166,255,0.7)', stack:'g'},
+      {label:'Solar/RE', data: rnd(24,0.4), backgroundColor:'rgba(74,222,128,0.7)', stack:'g'},
+      {label:'Water/Desal', data: rnd(24,0.5), backgroundColor:'rgba(253,142,161,0.7)', stack:'g'},
+    ]
+  },
+  options:{ maintainAspectRatio:false, plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{size:10}}}}, scales:{x:{stacked:true, ticks:{font:{size:9}}}, y:{stacked:true}}}
+});
+
+/* Freq chart (ops) */
+const freqLabels = Array.from({length:60},(_,i)=>i);
+charts.freq = new Chart(document.getElementById('freqChart'), {
+  type:'line',
+  data:{ labels:freqLabels, datasets:[
+    {label:'Grid freq (Hz)', data: Array.from({length:60},()=>49.95+Math.random()*0.1), borderColor:'rgb(77,166,255)', borderWidth:1.5, pointRadius:0, yAxisID:'y'},
+    {label:'Dispatch (MW)', data: Array.from({length:60},()=>6800+Math.random()*200), borderColor:'rgb(253,142,161)', borderWidth:1.5, pointRadius:0, yAxisID:'y1', tension:0.3},
+  ]},
+  options:{ maintainAspectRatio:false, plugins:{legend:{labels:{font:{size:10}, boxWidth:12}}}, scales:{
+    y:{position:'left', min:49.8, max:50.2, title:{display:true, text:'Hz', font:{size:10}}},
+    y1:{position:'right', min:6000, max:7500, grid:{display:false}, title:{display:true, text:'MW', font:{size:10}}}
+  }}
+});
+
+/* Water chart */
+charts.water = new Chart(document.getElementById('waterChart'),{
+  type:'line', data:{
+    labels:Array.from({length:30},(_,i)=>'D'+(i-29)),
+    datasets:[
+      {label:'Shuaibah', data: rnd(30,870), borderColor:'rgb(74,222,128)', borderWidth:1.5, pointRadius:0, tension:0.3},
+      {label:'Hidd', data: rnd(30,475), borderColor:'rgb(77,166,255)', borderWidth:1.5, pointRadius:0, tension:0.3},
+    ]
+  }, options:{maintainAspectRatio:false, plugins:{legend:{labels:{font:{size:10},boxWidth:10}}}, scales:{y:{ticks:{font:{size:9}}}, x:{ticks:{font:{size:8}, maxTicksLimit:6}}}}
+});
+
+/* Fin bar */
+charts.fin = new Chart(document.getElementById('finBar'),{
+  type:'bar', data:{
+    labels:['Revenue','EBITDA','PATAMI','OCF'],
+    datasets:[
+      {label:'YTD Actual', data:[5840,1840,312,1420], backgroundColor:'rgba(253,142,161,0.85)'},
+      {label:'Budget', data:[5650,1780,285,1550], backgroundColor:'rgba(77,166,255,0.7)'},
+      {label:'PY', data:[5495,1690,278,1380], backgroundColor:'rgba(120,120,120,0.5)'},
+    ]
+  }, options:{maintainAspectRatio:false, plugins:{legend:{labels:{font:{size:10},boxWidth:10}}}, scales:{y:{ticks:{font:{size:9}}, title:{display:true, text:'RM m', font:{size:10}}}}}
+});
+
+/* Segment donut */
+charts.seg = new Chart(document.getElementById('segDonut'),{
+  type:'doughnut', data:{
+    labels:['Domestic IPP','International (KSA/BHR)','Renewables','EMS / Alam Flora'],
+    datasets:[{data:[1180,460,85,115], backgroundColor:['rgba(248,113,113,0.85)','rgba(77,166,255,0.85)','rgba(74,222,128,0.85)','rgba(253,142,161,0.85)'], borderWidth:0}]
+  }, options:{maintainAspectRatio:false, cutout:'62%', plugins:{legend:{position:'right', labels:{font:{size:11}, boxWidth:10}}}}
+});
+
+/* Capex */
+charts.capex = new Chart(document.getElementById('capexChart'),{
+  type:'bar', data:{
+    labels:['Q1','Q2','Q3','Q4'],
+    datasets:[
+      {label:'Plan', data:[180,210,240,260], backgroundColor:'rgba(120,120,120,0.5)'},
+      {label:'Actual', data:[164,195,228,0], backgroundColor:'rgba(253,142,161,0.9)'},
+    ]
+  }, options:{maintainAspectRatio:false, plugins:{legend:{labels:{font:{size:10}, boxWidth:10}}}, scales:{y:{ticks:{font:{size:9}}}}}
+});
+
+/* Debt ladder */
+charts.debt = new Chart(document.getElementById('debtChart'),{
+  type:'bar', data:{
+    labels:['<1y','1-2y','2-3y','3-5y','5-10y','>10y'],
+    datasets:[{label:'RMm', data:[820,1240,980,1850,3420,1280], backgroundColor:'rgba(77,166,255,0.85)'}]
+  }, options:{maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{ticks:{font:{size:9}}}, x:{ticks:{font:{size:9}}}}}
+});
+
+/* MLK price */
+const pxData = []; let px=0.62;
+for (let i=0;i<120;i++){ px += (Math.random()-0.48)*0.01; pxData.push(+px.toFixed(3)); }
+pxData.push(0.685);
+charts.px = new Chart(document.getElementById('pxChart'),{
+  type:'line', data:{
+    labels: pxData.map((_,i)=>i),
+    datasets:[
+      {label:'MLK', data:pxData, borderColor:'rgb(253,142,161)', backgroundColor:'rgba(253,142,161,0.12)', borderWidth:2, pointRadius:0, fill:true, tension:0.3},
+      {label:'Target', data: pxData.map(()=>0.78), borderColor:'rgba(74,222,128,0.7)', borderDash:[6,4], borderWidth:1.5, pointRadius:0, fill:false},
+    ]
+  }, options:{maintainAspectRatio:false, plugins:{legend:{labels:{font:{size:10}, boxWidth:10}}}, scales:{x:{display:false}, y:{ticks:{font:{size:9}}}}}
+});
+
+/* ESG */
+charts.co2 = new Chart(document.getElementById('co2Chart'),{
+  type:'line', data:{
+    labels:['2020','2022','2024','2026','2028','2030','2035','2040','2045','2050'],
+    datasets:[
+      {label:'Actual / Forecast', data:[0.92,0.86,0.78,0.71,0.62,0.55,0.38,0.22,0.10,0.02], borderColor:'rgb(248,113,113)', backgroundColor:'rgba(248,113,113,0.12)', borderWidth:2, fill:true, tension:0.3},
+      {label:'Net-Zero Glidepath', data:[0.92,0.85,0.78,0.70,0.61,0.52,0.36,0.20,0.08,0], borderColor:'rgb(74,222,128)', borderDash:[6,4], borderWidth:1.5, pointRadius:0, fill:false},
+    ]
+  }, options:{maintainAspectRatio:false, plugins:{legend:{labels:{font:{size:10}, boxWidth:10}}}, scales:{y:{title:{display:true, text:'tCO₂/MWh', font:{size:10}}, ticks:{font:{size:9}}}, x:{ticks:{font:{size:9}}}}}
+});
+
+charts.re = new Chart(document.getElementById('reChart'),{
+  type:'bar', data:{
+    labels:['2024','2025','2026','2027','2028','2029','2030','2031'],
+    datasets:[
+      {label:'Solar LSS', data:[182,260,360,490,620,760,920,1050], backgroundColor:'rgba(74,222,128,0.85)', stack:'a'},
+      {label:'Wind/Hybrid', data:[0,0,80,140,200,260,300,350], backgroundColor:'rgba(77,166,255,0.85)', stack:'a'},
+    ]
+  }, options:{maintainAspectRatio:false, plugins:{legend:{labels:{font:{size:10}, boxWidth:10}}, annotation:{}}, scales:{x:{stacked:true, ticks:{font:{size:9}}}, y:{stacked:true, title:{display:true, text:'MW', font:{size:10}}, ticks:{font:{size:9}}}}}
+});
+
+/* Safety */
+const months = ['M-11','M-10','M-9','M-8','M-7','M-6','M-5','M-4','M-3','M-2','M-1','M0'];
+charts.safety = new Chart(document.getElementById('safetyChart'),{
+  type:'line', data:{labels:months, datasets:[
+    {label:'LTIFR', data:[0.62,0.58,0.55,0.55,0.51,0.48,0.46,0.45,0.44,0.43,0.42,0.42], borderColor:'rgb(248,113,113)', borderWidth:2, tension:0.3, pointRadius:0},
+    {label:'TRIFR', data:[1.45,1.42,1.38,1.34,1.31,1.28,1.25,1.22,1.20,1.19,1.18,1.18], borderColor:'rgb(251,191,36)', borderWidth:2, tension:0.3, pointRadius:0},
+    {label:'Target LTIFR', data: months.map(()=>0.30), borderColor:'rgba(74,222,128,0.7)', borderDash:[6,4], borderWidth:1.5, pointRadius:0},
+  ]}, options:{maintainAspectRatio:false, plugins:{legend:{labels:{font:{size:10}, boxWidth:10}}}, scales:{y:{ticks:{font:{size:9}}}, x:{ticks:{font:{size:9}}}}}
+});
+
+/* Headcount */
+charts.hc = new Chart(document.getElementById('hcChart'),{
+  type:'bar', data:{
+    labels:['Generation','International','Renewables','Alam Flora','Corp & Strategy','EMS / Services'],
+    datasets:[{label:'Headcount', data:[742,318,84,612,210,218], backgroundColor:'rgba(253,142,161,0.85)'}]
+  }, options:{maintainAspectRatio:false, indexAxis:'y', plugins:{legend:{display:false}}, scales:{x:{ticks:{font:{size:9}}}, y:{ticks:{font:{size:10}}}}}
+});
+
+/* Decarb */
+charts.decarb = new Chart(document.getElementById('decarbChart'),{
+  type:'bar', data:{
+    labels:['2024','2026','2028','2030','2032','2035','2040','2045','2050'],
+    datasets:[
+      {label:'Coal', data:[5520,5520,5200,4800,4200,3000,1500,400,0], backgroundColor:'rgba(120,120,120,0.7)', stack:'s'},
+      {label:'Gas', data:[2293,2293,2293,2293,2200,2000,1500,800,200], backgroundColor:'rgba(77,166,255,0.8)', stack:'s'},
+      {label:'RE / Storage', data:[412,620,920,1400,2000,3200,5500,7800,9500], backgroundColor:'rgba(74,222,128,0.85)', stack:'s'},
+      {label:'Water/Other', data:[1829,1829,1900,2000,2200,2500,3000,3300,3600], backgroundColor:'rgba(253,142,161,0.7)', stack:'s'},
+    ]
+  }, options:{maintainAspectRatio:false, plugins:{legend:{labels:{font:{size:10}, boxWidth:10}}}, scales:{x:{stacked:true, ticks:{font:{size:9}}}, y:{stacked:true, title:{display:true, text:'Capacity MW', font:{size:10}}, ticks:{font:{size:9}}}}}
+});
+
+/* ============ HEATMAPS ============ */
+function renderCompliance() {
+  const cats = ['DOE Environment','DOSH Safety','SPAN Water','EC Energy','Bursa Disclosure','Tax/Customs'];
+  let html = '';
+  cats.forEach(c => {
+    let row = `<div class="heat-row"><div class="lbl">${c}</div>`;
+    for (let m=0; m<12; m++) {
+      const r = Math.random();
+      const cls = r<0.55?'h0':r<0.78?'h1':r<0.9?'h2':r<0.97?'h3':'h4';
+      row += `<div class="heat-cell ${cls}" title="${c} · month ${m+1}"></div>`;
+    }
+    row += '</div>';
+    html += row;
+  });
+  document.getElementById('complianceHeat').innerHTML = html;
+}
+renderCompliance();
+
+function renderRisk() {
+  // 5x5 risk matrix with labels
+  const risks = [
+    {n:1,t:'Coal price spike',l:4,i:5},
+    {n:2,t:'TNB PPA renewal',l:3,i:5},
+    {n:3,t:'Cyber breach',l:3,i:4},
+    {n:4,t:'Major outage',l:2,i:5},
+    {n:5,t:'FX MYR weakness',l:4,i:3},
+    {n:6,t:'RE pipeline delay',l:3,i:3},
+    {n:7,t:'Carbon tax',l:3,i:4},
+    {n:8,t:'Talent gap',l:4,i:2},
+    {n:9,t:'Reg change KSA',l:2,i:3},
+    {n:10,t:'Climate physical',l:2,i:4},
+  ];
+  const mtx = document.getElementById('riskMatrix');
+  let html = '<div class="rh"></div>';
+  for (let l=1;l<=5;l++) html += `<div class="rh">L${l}</div>`;
+  for (let i=5;i>=1;i--) {
+    html += `<div class="rh">I${i}</div>`;
+    for (let l=1;l<=5;l++) {
+      const score = l*i;
+      const cls = score<=4?'rc-g':score<=9?'rc-y':score<=15?'rc-o':'rc-r';
+      const here = risks.filter(r => r.l===l && r.i===i);
+      html += `<div class="risk-cell ${cls}" title="L${l} I${i}">${here.map(r=>r.n).join(' ')}</div>`;
+    }
+  }
+  mtx.innerHTML = html;
+  // Risk legend underneath
+  const wrap = mtx.parentElement;
+  if (!wrap.querySelector('.risk-leg')) {
+    const leg = document.createElement('div');
+    leg.className = 'risk-leg small muted';
+    leg.style.marginTop = '8px';
+    leg.style.columnCount = '2';
+    leg.innerHTML = risks.map(r=>`<div>${r.n}. ${r.t}</div>`).join('');
+    wrap.appendChild(leg);
+  }
+}
+renderRisk();
+
+/* ============ CARD DETAIL DRAWER ============ */
+const cardDetails = {
+  "Asset Map — Real-time Status": {
+    sub: "Fleet Overview",
+    stats: [["Total Capacity","9,824 MW"],["Online Now","6,842 MW"],["Plants Online","7 / 9"],["Geographies","MY · KSA · BHR"]],
+    narrative: "Malakoff operates a 9.8 GW gross fleet across Malaysia, Saudi Arabia and Bahrain. KEV U3 boiler tube leak has reduced the fleet output by approximately 1,100 MW vs. nominal. SEV U1 ambient derate is seasonal and recovers overnight. LSS portfolio is on solar-irradiance curve.",
+    actions: [
+      ["Approve KEV U3 emergency repair scope", "COO · today"],
+      ["Confirm coal cargo acceleration for Tg Bin", "CPO · 24h"],
+      ["Review LSS curtailment with TNB grid control", "GM Renewables"],
+    ],
+  },
+  "Today at a Glance": {
+    sub: "Macro & Commodities",
+    stats: [["Coal NEWC","$128.4/t"],["USD/MYR","4.7140"],["JKM LNG","$11.8"],["Brent","$82.1"]],
+    narrative: "Coal prices have moved up 1.2% d/d on Indonesian export news. MYR weakness continues to support USD-denominated international receipts (SEC, EWA) but raises USD-debt servicing cost. Hedge ratio currently 62% on FY-1 fuel exposure.",
+    actions: [
+      ["Trigger coal hedge top-up to 70%", "CFO · this week"],
+      ["FX forward review — USD/MYR", "Treasury"],
+    ],
+  },
+  "Generation Mix (last 24h)": {
+    sub: "Fuel Mix",
+    stats: [["Coal share","54%"],["Gas share","32%"],["RE share","6%"],["Water/Desal","8%"]],
+    narrative: "Coal remains the baseload anchor with Tg Bin + TBE contributing 43% of group GWh. RE share has crossed 6% for the first time post-LSS4 Mukah COD. Decarb glidepath requires this to reach 12% by 2027.",
+    actions: [["Accelerate LSS5 bid submissions", "CSO"], ["Battery storage feasibility — pair with LSS portfolio", "CTO"]],
+  },
+  "Incident Feed (24h)": {
+    sub: "Incidents · 24h",
+    stats: [["Critical","2"],["Warning","3"],["Cyber events","3"],["Resolved","1"]],
+    narrative: "Two critical incidents remain open. KEV boiler leak is highest priority — emergency response team mobilised; estimated 4-day repair. Cyber phishing wave appears targeted at finance dept; SOC has applied additional gateway controls.",
+    actions: [
+      ["Daily incident war-room at 08:00", "COO"],
+      ["CISO brief on cyber posture", "this week"],
+      ["Public statement readiness for KEV outage", "Comms"],
+    ],
+  },
+  "Plant Status": {
+    sub: "Per-Asset Live",
+    stats: [["Fleet Avail","91.4%"],["Forced Outages","1"],["Planned Outages","2"],["Target Avail","92.0%"]],
+    narrative: "Availability is below target driven by KEV (78.2%) and SEV ambient derate. Excluding KEV, fleet availability would be 94.1%. Reliability KPIs for board pack should split planned vs forced clearly.",
+    actions: [["KEV recovery plan walk-through", "COO · today"], ["Reliability KPI redefinition for FY26 board", "Strategy"]],
+  },
+  "Grid Frequency & Dispatch": {
+    sub: "Grid Stability",
+    stats: [["Freq band","49.95–50.05 Hz"],["Dispatch","6,842 MW"],["Reserve","420 MW"],["Ramp events 24h","12"]],
+    narrative: "Grid frequency remains tight within statutory band. Malakoff fleet is providing 32% of national reserve capacity. Renewable integration is increasing ramp events but no curtailment events YTD.",
+    actions: [["Ancillary services pricing review with EC", "Strategy"]],
+  },
+  "Availability vs Target": { sub: "Plant Gauges", stats:[["Top","Shuaibah 96.1%"],["Bottom","KEV 78.2%"],["Fleet","91.4%"],["Target","92.0%"]],
+    narrative: "Six of nine plants exceed 90% availability. KEV remains the structural drag — repowering business case targets +8pp availability uplift.",
+    actions:[["Repowering BC to BOD by Q3", "Strategy"]] },
+  "Fuel Stockpile (days cover)": { sub: "Fuel Security", stats:[["Tg Bin","18d"],["TBE","24d"],["KEV","12d"],["Target","21d"]],
+    narrative: "KEV stockpile critically low. Single cargo dispatched, ETA 6 days. Recommend logistics contingency in case of weather delay.",
+    actions: [["Expedite KEV coal cargo", "CPO · today"],["Activate Tg Bin backup vendor", "Procurement"]] },
+  "Water Production (IWPP)": { sub: "Desalination", stats:[["Shuaibah","875k m³/d"],["Hidd","480k m³/d"],["Total","1.355M m³/d"],["Avail","98.4%"]],
+    narrative: "Water production within nomination at both IWPPs. Shuaibah 3 retrofit programme will add 200 MW PV by 2027, reducing carbon intensity of water by 28%.",
+    actions: [["Shuaibah RE retrofit gate review", "Intl. SBU"]] },
+  "Outage Tracker — Next 14 days": { sub: "Maintenance", stats:[["Planned","4"],["Forced","1"],["Maint window","2"],["Lost MW-days","430"]],
+    narrative: "Outage profile is concentrated in week 2. Critical to sequence Tg Bin C-inspection ahead of seasonal demand peak. Resource conflicts on contractor availability — escalation required.",
+    actions:[["Resequence Tg Bin U2 inspection", "Asset Mgmt"], ["Lock-in contractor SLAs", "Procurement"]] },
+  "Revenue · EBITDA · PATAMI — YTD vs Budget vs PY": { sub:"P&L", stats:[["Revenue","RM 5.84bn"],["EBITDA","RM 1.84bn"],["PATAMI","RM 312m"],["vs Bgt","+3.4%"]],
+    narrative: "All key P&L lines above budget. PATAMI beat driven by lower-than-expected coal cost and FX tailwind on USD revenues. OCF lag is timing-related on TNB receivables.",
+    actions:[["Raise full-year EBITDA guidance — IR briefing", "CFO"], ["TNB receivables escalation", "Finance"]] },
+  "Segment Contribution (EBITDA RMm)": { sub:"Segments", stats:[["Domestic","RM 1,180m"],["Intl","RM 460m"],["RE","RM 85m"],["EMS/AF","RM 115m"]],
+    narrative: "Domestic IPP remains the cash engine at 64% of EBITDA. International contribution growing on Shuaibah uptime. RE segment small but margin-accretive at 38% EBITDA margin.",
+    actions:[["RE segment 5-yr plan refresh", "Strategy"]] },
+  "Receivables Aging": { sub:"Working Capital", stats:[["Total","RM 2,285m"],["<30d","86%"],[">90d","2%"],["DSO","42d"]],
+    narrative: "Overall receivables healthy. EWA Bahrain >90d portion (RM 12m) under active recovery. TNB seasonal lag normal — no concern.",
+    actions:[["EWA receivables review with finance director", "Intl"]] },
+  "Capex Burn vs Plan (RMm)": { sub:"Capex", stats:[["YTD Actual","RM 587m"],["YTD Plan","RM 630m"],["FY Plan","RM 890m"],["Variance","-6.8%"]],
+    narrative: "Capex underspend of RM 43m vs plan, mostly timing on LSS5 and battery storage. No project cancellations.",
+    actions:[["Capex rephase paper to BAC", "Finance"]] },
+  "Debt Maturity Ladder (RMm)": { sub:"Capital Structure", stats:[["Total Debt","RM 9.6bn"],["Gearing","1.84x"],["Avg Cost","4.85%"],["Tenor","8.4y avg"]],
+    narrative: "Debt profile is well-laddered with no near-term refi cliff. RM 820m maturing within 12 months — refinancing plan in advanced discussion with two domestic banks.",
+    actions:[["Sukuk wakala launch decision", "CFO · Q2"], ["Rating agency annual review prep", "Treasury"]] },
+  "MLK Share Price & Analyst Consensus": { sub:"Equity Story", stats:[["Last","RM 0.685"],["TP","RM 0.78"],["Upside","+13.9%"],["Yield","5.1%"]],
+    narrative: "Stock has rallied 31% from 52w low on improved earnings visibility and green-transition narrative. Two recent upgrades. Key catalyst: 1.4 GW RE pipeline execution.",
+    actions:[["Investor day prep — green transition", "IR · June"], ["Engage sell-side laggards (1 SELL)", "IR"]] },
+  "CO₂ Intensity vs Net-Zero 2050 Glidepath": { sub:"Climate", stats:[["Intensity","0.78"],["2030 tgt","0.55"],["2050 tgt","0.02"],["YoY","-3.1%"]],
+    narrative: "On glidepath for 2030 milestone. Largest decarbonisation lever is Kapar repowering and accelerated coal retirement. Ammonia co-firing pilot at Tg Bin is critical hedge.",
+    actions:[["NH₃ co-firing FEED study award", "CTO"], ["Coal retirement roadmap to MITI", "Strategy"]] },
+  "RE Capacity Pipeline — Path to 1.4 GW by 2031": { sub:"Renewables", stats:[["Today","412 MW"],["Target","1,400 MW"],["Gap","988 MW"],["Years","7"]],
+    narrative: "RE pipeline visibility through 2027 is strong (~920 MW). Gap to target is 480 MW in 2028-2031 window — must be sourced through M&A, hybrid wind+solar in Sabah, and offshore wind feasibility.",
+    actions:[["Offshore wind pre-feasibility study", "Strategy"], ["Sabah hybrid project FID", "BD"]] },
+  "ESG Rating Snapshot": { sub:"ESG Ratings", stats:[["MSCI","A−"],["FTSE4Good","3.4"],["Sustainalytics","24.1"],["CDP","B"]],
+    narrative: "MSCI upgrade reflects improved disclosure and decarb roadmap clarity. CDP upgrade to A− targeted FY25 — requires Scope 3 baselining completion.",
+    actions:[["Scope 3 GHG inventory completion", "Sustainability"]] },
+  "Alam Flora — Waste & Recycling": { sub:"Circular Economy", stats:[["Daily collection","8,420 t"],["Recycling rate","31.2%"],["EV fleet","14%"],["Revenue","RM 612m YTD"]],
+    narrative: "Recycling rate up 4pp YoY. EV fleet conversion accelerating with grant support. Material recovery facility in Selangor on track for Q3 commissioning.",
+    actions:[["MRF Selangor commissioning gate", "Alam Flora CEO"]] },
+  "Regulatory Compliance Heatmap": { sub:"Compliance", stats:[["Open NCRs","3"],["Closed YTD","18"],["High severity","0"],["Audit score","94%"]],
+    narrative: "No high-severity regulatory issues. Three minor NCRs across DOE Environment and DOSH. All on track for closure within statutory timeline.",
+    actions:[["Monthly compliance review with audit cmte", "GC"]] },
+  "LTIFR / TRIFR Trend (12m)": { sub:"Safety Performance", stats:[["LTIFR","0.42"],["TRIFR","1.18"],["Target LTIFR","0.30"],["Trend","↓ improving"]],
+    narrative: "Safety performance improving consistently but still above LTIFR 0.30 target. Two LTIs YTD both at contractor crews — contractor safety management programme strengthened.",
+    actions:[["Contractor safety stand-down — all sites", "HSE Director"], ["Safety culture refresh programme", "CHRO"]] },
+  "Headcount by Segment": { sub:"Workforce", stats:[["Total","2,184"],["Malaysian","88%"],["Female","27%"],["Attrition","8.4%"]],
+    narrative: "Headcount stable. Attrition uptick of 1.2pp driven by digital/engineering talent leaving for tech sector competitors. Total reward review in progress.",
+    actions:[["Critical talent retention plan", "CHRO · this month"]] },
+  "Open Safety Observations": { sub:"Safety Open Items", stats:[["High","2"],["Medium","2"],["Low","1"],["Avg age","3.2d"]],
+    narrative: "Two HIGH severity items open beyond 3 days. Hidd work-at-height near miss requires expedited closure with site safety standdown.",
+    actions:[["Standdown at Hidd — 24h", "Intl SBU"], ["Confined space PTW process refresh", "HSE"]] },
+  "Training & Capability": { sub:"L&D", stats:[["Hrs/FTE","42.6"],["Tech cert","91%"],["Engagement","78/100"],["Female mgmt","27%"]],
+    narrative: "Training hours exceed target. Female management ratio target is 30% by FY26 — accelerate sponsorship programme.",
+    actions:[["Women in Leadership sponsorship Cohort 3", "CHRO"]] },
+  "Leadership Pipeline Readiness": { sub:"Succession", stats:[["Critical roles","6"],["Ready-now coverage","83%"],["Gaps","CTO ready-now"],["Diversity","32%"]],
+    narrative: "Most critical roles have ready-now coverage. CTO/Strategy role has no ready-now successor — external pipeline assessment in progress.",
+    actions:[["CTO succession options paper to NC", "CHRO · June"]] },
+  "Decarbonization Roadmap": { sub:"Energy Transition", stats:[["2024 fleet","10.0 GW"],["2030 fleet","10.5 GW"],["2030 RE","1.4 GW"],["2050 RE","9.5 GW"]],
+    narrative: "Pathway requires coal capacity to halve by 2035 and reach zero by 2045. RE + storage + green hydrogen pilots deliver the bulk of new capacity. CCS optionality maintained for residual gas fleet.",
+    actions:[["Net-Zero plan v3 to Board", "CEO · Q3"], ["Green sukuk feasibility", "Treasury"]] },
+  "Top-10 Enterprise Risks (Heatmap)": { sub:"Risk", stats:[["Red zone","3"],["Orange","4"],["Yellow","2"],["Green","1"]],
+    narrative: "Top-3 residual risks: coal price volatility, TNB PPA renewal terms, major plant outage. Mitigation plans in place for each; PPA renewal is highest senior management attention.",
+    actions:[["Risk Cmte deep-dive on PPA renewal", "BRC"], ["Coal hedging policy refresh", "CFO"]] },
+  "M&A / Project Pipeline": { sub:"Growth", stats:[["Origination","4"],["DD","3"],["Negotiation","2"],["Signed","3"]],
+    narrative: "Pipeline value approximately RM 5.2bn enterprise value. Indonesian CCGT acquisition is highest-conviction deal — IC paper in week.",
+    actions:[["Indonesia CCGT IC paper", "BD · this week"], ["Vietnam floating solar JV term sheet", "BD"]] },
+  "LSS5 / CGPP Bid Tracker": { sub:"Bids", stats:[["Active bids","5"],["Awarded MW","30"],["Pipeline MW","310"],["Win rate","42%"]],
+    narrative: "Bidor 100 MW is largest open bid; tariff at 19.8 sen/kWh is competitive. CGPP corporate PPA segment is highest-margin RE opportunity.",
+    actions:[["Bidor tariff sensitivity to bid cmte", "BD"], ["CGPP commercial team expansion", "CHRO"]] },
+  "Key Stakeholder Engagements (30d)": { sub:"Stakeholders", stats:[["Govt mtgs","8"],["Regulator","5"],["Customers","3"],["Investors","6"]],
+    narrative: "TNB PPA renewal discussions are advanced but commercial terms still under negotiation. KETSA Minister briefing on energy transition scheduled.",
+    actions:[["TNB CEO 1:1 follow-up", "CEO"], ["KETSA briefing pack", "Strategy"]] },
+  "Innovation & Digital": { sub:"Digital", stats:[["Digital twins","4/6"],["PdM savings","RM 18m"],["NIST CSF","3.4/5"],["AI use-cases","9"]],
+    narrative: "Digital twin programme delivering quantified PdM savings. Cyber maturity at 3.4 — gap to 4.0 target requires SOC expansion and OT-IT segmentation investment.",
+    actions:[["SOC expansion business case", "CIO · Q2"], ["AI strategy refresh", "CTO"]] },
+
+  /* Hero KPI cards */
+  "Net Generation YTD": { sub:"Generation Output", stats:[["YTD","14,820 GWh"],["PY","14,235 GWh"],["YoY","+4.1%"],["Run-rate FY","21.4 TWh"]],
+    narrative:"Generation is tracking 4.1% ahead of prior year, driven by improved Shuaibah and TBE availability. Risk: KEV forced outage if extended could shave 200 GWh from run-rate.",
+    actions:[["Reaffirm FY generation guidance","CEO · IR"],["KEV recovery acceleration","COO"]] },
+  "Plant Availability": { sub:"Reliability", stats:[["Fleet","91.4%"],["Target","92.0%"],["Best","Shuaibah 96.1%"],["Worst","KEV 78.2%"]],
+    narrative:"Availability below the 92% group target. Excluding KEV the fleet would deliver 94.1%. Structural fix for KEV via the repowering business case is the long-term answer.",
+    actions:[["KEV repowering BC fast-track","Strategy"]] },
+  "Revenue YTD": { sub:"Top Line", stats:[["Actual","RM 5.84bn"],["Budget","RM 5.65bn"],["PY","RM 5.495bn"],["YoY","+6.3%"]],
+    narrative:"Revenue ahead of budget on FX tailwind and higher dispatched MW from international assets.",
+    actions:[["Update full-year revenue guidance","CFO"]] },
+  "EBITDA Margin": { sub:"Profitability", stats:[["YTD","31.5%"],["PY","30.1%"],["Δ","+1.4pp"],["Tgt","31.0%"]],
+    narrative:"Margin expansion driven by lower fuel cost (coal hedged at favourable levels) and FX. Watch: rising O&M for ageing assets.",
+    actions:[["FY26 O&M efficiency programme","COO"]] },
+  "Cash Position": { sub:"Liquidity", stats:[["Cash","RM 1.92bn"],["Undrawn RCF","RM 1.4bn"],["Headroom","RM 3.32bn"],["Min covenant","RM 800m"]],
+    narrative:"Strong liquidity. Covenant headroom comfortable. Surplus cash earmarked for LSS5 equity and Indonesian CCGT acquisition.",
+    actions:[["Capital allocation paper to Board","CFO · Q2"]] },
+  "ESG Score": { sub:"Ratings", stats:[["MSCI","A−"],["FTSE4Good","3.4"],["CDP","B"],["Sustainalytics","24.1"]],
+    narrative:"Multiple agency upgrades. Targeting A rating at MSCI within 18 months — requires Scope 3 inventory completion and SBTi validation.",
+    actions:[["SBTi target submission","Sustainability · Q3"]] },
+  "EBITDA YTD": { sub:"Earnings", stats:[["Actual","RM 1.84bn"],["Budget","RM 1.78bn"],["PY","RM 1.69bn"],["YoY","+8.9%"]],
+    narrative:"EBITDA beat budget by RM 60m on stronger margins. Full-year guidance upgrade likely at H1 results.",
+    actions:[["H1 results preparation","CFO · July"]] },
+  "PATAMI YTD": { sub:"Net Earnings", stats:[["Actual","RM 312m"],["Budget","RM 285m"],["PY","RM 278m"],["YoY","+12.2%"]],
+    narrative:"PATAMI beat budget by 9.5% on EBITDA strength plus lower-than-expected finance cost. Effective tax rate normalising at 24%.",
+    actions:[["Dividend declaration recommendation","CFO"]] },
+  "OCF YTD": { sub:"Cash Flow", stats:[["Actual","RM 1.42bn"],["Budget","RM 1.55bn"],["Gap","-RM 130m"],["DSO","42d"]],
+    narrative:"OCF behind plan due to TNB receivables timing. Cash conversion remains healthy at 77% of EBITDA.",
+    actions:[["TNB receivables escalation","CFO · this week"]] },
+  "CO₂ Intensity": { sub:"Climate KPI", stats:[["YTD","0.78"],["PY","0.805"],["2030 tgt","0.55"],["YoY","-3.1%"]],
+    narrative:"On track against the decarbonisation glidepath. Coal-to-gas mix shift and LSS additions are the two main drivers.",
+    actions:[["Net-zero plan v3 sign-off","CEO · Q3"]] },
+  "RE Capacity": { sub:"Renewables Build", stats:[["Today","412 MW"],["2031 tgt","1,400 MW"],["Coverage","29%"],["Pipeline","920 MW"]],
+    narrative:"On pace to 2027 milestone of 920 MW. Gap to 2031 target requires offshore wind feasibility and M&A.",
+    actions:[["Offshore wind pre-feasibility","Strategy"]] },
+  "Water Intensity": { sub:"Water Stewardship", stats:[["YTD","1.42 L/kWh"],["PY","1.50"],["YoY","-5.3%"],["Tgt","1.30"]],
+    narrative:"Water intensity improving through dry-cooling retrofits and recycle programmes. Tg Bin water reuse upgrade approved.",
+    actions:[["Tg Bin water reuse Phase-2","Asset Mgmt"]] },
+  "Ash Utilization": { sub:"Circular Economy", stats:[["YTD","68%"],["PY","64%"],["YoY","+4pp"],["Tgt","75%"]],
+    narrative:"Coal ash sold to cement industry under long-term offtake. Phase-2 partnership with three cement majors under negotiation.",
+    actions:[["Ash offtake long-term contracting","Commercial"]] },
+  "LTIFR (12m)": { sub:"Safety Leading Indicator", stats:[["LTIFR","0.42"],["PY","0.50"],["Target","0.30"],["LTIs YTD","2"]],
+    narrative:"Both YTD LTIs at contractor crews. Contractor safety management programme strengthened.",
+    actions:[["Contractor stand-down all sites","HSE Dir"]] },
+  "TRIFR (12m)": { sub:"Safety Trend", stats:[["TRIFR","1.18"],["PY","1.39"],["YoY","-15%"],["Top hazard","WAH"]],
+    narrative:"TRIFR improving steadily. Work-at-height remains the top hazard category. Refresher campaign starting Q2.",
+    actions:[["WAH refresher campaign","HSE"]] },
+  "Headcount": { sub:"Workforce", stats:[["Total","2,184"],["Malaysian","88%"],["Female","27%"],["Avg age","38.4y"]],
+    narrative:"Stable headcount. Female ratio target of 30% by FY26 needs sponsorship acceleration. Avg age slightly young — succession depth being addressed.",
+    actions:[["Women in Leadership Cohort 3","CHRO"]] },
+  "Attrition (rolling)": { sub:"Talent", stats:[["Rate","8.4%"],["PY","7.2%"],["Δ","+1.2pp"],["Hot spots","Digital, BD"]],
+    narrative:"Attrition uptick concentrated in digital and business-development functions where tech-sector salaries are bid up. Total reward review in progress.",
+    actions:[["Critical talent retention","CHRO · this month"]] },
+};
+
+function showDrawer(title, ctxText) {
+  const d = cardDetails[title];
+  document.getElementById('drwTitle').textContent = title;
+  document.getElementById('drwSub').textContent = d ? d.sub : 'Card Detail';
+  let body = '';
+  if (d) {
+    body += `<section><h4>Key Metrics</h4><div class="stat-row">`;
+    d.stats.forEach(([l,v]) => body += `<div class="stat-box"><div class="l">${l}</div><div class="v">${v}</div></div>`);
+    body += `</div></section>`;
+    body += `<section><h4>CEO Briefing</h4><p>${d.narrative}</p></section>`;
+    body += `<section><h4>Recommended Actions</h4><ul class="actions">`;
+    d.actions.forEach(([t,o]) => body += `<li>${t}<span class="own">— ${o}</span></li>`);
+    body += `</ul></section>`;
+  } else {
+    body += `<section><h4>Current View</h4><p>${ctxText || 'This card visualises live operational data. Refer to the Operations or Financial tab for the underlying time-series and drill-downs.'}</p></section>`;
+    body += `<section><h4>Suggested Drill-Down</h4><ul class="actions"><li>Open detailed report in BI tool<span class="own">— Analytics</span></li><li>Request data extract<span class="own">— Data Office</span></li></ul></section>`;
+  }
+  body += `<section><h4>Activity</h4><p class="muted small">Last updated ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})} MYT · auto-refresh enabled</p></section>`;
+  document.getElementById('drwBody').innerHTML = body;
+  document.getElementById('drawer').classList.add('show');
+  document.getElementById('drawerBg').classList.add('show');
+}
+function hideDrawer() {
+  document.getElementById('drawer').classList.remove('show');
+  document.getElementById('drawerBg').classList.remove('show');
+}
+document.getElementById('drwClose').addEventListener('click', hideDrawer);
+document.getElementById('drawerBg').addEventListener('click', hideDrawer);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') hideDrawer(); });
+
+function cardTitle(card) {
+  const h3 = card.querySelector('h3');
+  if (h3 && h3.childNodes[0]) {
+    const t = (h3.childNodes[0].nodeValue || h3.textContent).trim();
+    if (t) return t;
+  }
+  const lbl = card.querySelector('.hero-kpi > .lbl, .lbl');
+  if (lbl) return lbl.textContent.trim();
+  return null;
+}
+
+document.querySelectorAll('.card').forEach(card => {
+  card.addEventListener('click', e => {
+    if (e.target.closest('button, .ack, .plant, .kpi-mini, canvas, .kcard, a, input, .heat-cell, .risk-cell, .gantt-bar')) return;
+    const title = cardTitle(card);
+    if (!title) return;
+    const ctx = (card.innerText || '').slice(0, 240);
+    showDrawer(title, ctx);
+  });
+});
+
+/* ============ LIVE SIM ============ */
+setInterval(() => {
+  // jitter plant gen
+  let totalGen = 0;
+  plants.forEach(p => {
+    const jit = (Math.random()-0.5) * p.cap * 0.01;
+    p.gen = Math.max(0, Math.min(p.cap, p.gen + jit));
+    if (p.status === 'dn') p.gen = Math.min(p.gen, p.cap * 0.4);
+    totalGen += p.gen;
+  });
+  document.getElementById('kpiGen').textContent = Math.round(totalGen).toLocaleString();
+  renderPlantTable();
+
+  // freq jitter
+  if (charts.freq) {
+    const f = charts.freq.data.datasets[0].data;
+    const d = charts.freq.data.datasets[1].data;
+    f.shift(); f.push(+(49.95 + Math.random()*0.1).toFixed(3));
+    d.shift(); d.push(Math.round(totalGen));
+    charts.freq.update('none');
+  }
+}, 3000);
+
+setInterval(() => {
+  // MLK price
+  const cur = parseFloat(document.getElementById('mlkPx').textContent);
+  const nxt = +(cur + (Math.random()-0.5) * 0.005).toFixed(3);
+  const ch = +(nxt - 0.670).toFixed(3);
+  const pct = (ch/0.670*100).toFixed(2);
+  document.getElementById('mlkPx').textContent = nxt.toFixed(3);
+  document.getElementById('kpiPx').textContent = nxt.toFixed(3);
+  const chEl = document.getElementById('mlkChg');
+  chEl.textContent = (ch>=0?'+':'') + ch.toFixed(3) + ' (' + (ch>=0?'+':'') + pct + '%)';
+  chEl.className = ch>=0?'ticker-up':'ticker-dn';
+}, 4000);
+
+</script>
+</body>
+</html>
