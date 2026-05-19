@@ -821,11 +821,36 @@ const plants = [
 ];
 
 const initialAlerts = [
-  {sev:'crit', src:'KEV', title:'KEV U3 Boiler Tube Leak', body:'Load reduced to 320 MW; repair team mobilised', time:'07:42'},
-  {sev:'warn', src:'TBP', title:'Coal stockpile < 21d', body:'Tg Bin coal cover 18 days; replenishment ETA 4 days', time:'06:15'},
-  {sev:'crit', src:'CYBER', title:'Phishing campaign blocked', body:'3 attempts targeting finance; SOC investigating', time:'02:14'},
-  {sev:'warn', src:'SEV', title:'SEV U1 ambient derate', body:'50 MW derate; within ISO band', time:'04:20'},
-  {sev:'info', src:'LSS', title:'LSS4 Mukah COD achieved', body:'30 MW solar — ahead of schedule', time:'05:50'},
+  {sev:'crit', src:'KEV', title:'KEV U3 Boiler Tube Leak', body:'Load reduced to 320 MW; repair team mobilised', time:'07:42',
+    detected:'07:38 MYT · 19 May 2026', owner:'GM Operations — KEV', sla:'Restore by 22:00 today',
+    impact:[['Capacity lost','330 MW'],['Revenue at risk','RM 4.8m/day'],['Customer','TNB — PPA capacity payment exposure'],['Safety','No injuries; LOTO in force']],
+    rca:'Tube #142 in superheater bank 3 failed — preliminary cause is creep-fatigue at 14yr service age. Adjacent tubes inspected; no further leaks. Boiler isolated, pressure dropped, ventilation in progress before entry.',
+    timeline:[['07:38','Boiler trip — low drum level alarm'],['07:42','Unit declared offline; TNB Grid notified'],['08:10','Cooling commenced'],['12:00','Entry permit target'],['18:00','Tube replacement target'],['22:00','Synchronise to grid (target)']],
+    actions:[['Confirm replacement tube stock at site','Plant Manager · now'],['File force-majeure preliminary notice to ST','Regulatory · today'],['Mobilise root-cause panel; review remaining life of bank 3','Asset Mgmt · 48h']]},
+  {sev:'warn', src:'TBP', title:'Coal stockpile < 21d', body:'Tg Bin coal cover 18 days; replenishment ETA 4 days', time:'06:15',
+    detected:'06:15 MYT · 19 May 2026', owner:'Head of Fuel Supply', sla:'Cover ≥ 25 days within 7 days',
+    impact:[['Days cover','18d (target 25d)'],['Vessels in transit','2 Panamax'],['Discharge ETA','23 May & 27 May'],['Risk','Forced derate if both vessels slip > 3d']],
+    rca:'Combination of higher-than-plan dispatch (warm weather, +6% demand) and one cargo redirected from Kalimantan due to weather. Buyer-supplier penalty clauses being reviewed.',
+    timeline:[['Today','Stockpile at 18d'],['+4d','MV Lautan Mas discharge — restores to 22d'],['+8d','MV Banjar discharge — restores to 27d']],
+    actions:[['Confirm laycan with both shipping agents','Fuel Trading · today'],['Negotiate spot top-up cargo (50kt) as contingency','Fuel Trading · 48h'],['Brief CFO on hedging exposure','CFO · this week']]},
+  {sev:'crit', src:'CYBER', title:'Phishing campaign blocked', body:'3 attempts targeting finance; SOC investigating', time:'02:14',
+    detected:'02:14 MYT · 19 May 2026', owner:'CISO', sla:'Forensics report within 24h',
+    impact:[['Targets','3 Finance users'],['Successful clicks','0'],['Credentials leaked','None confirmed'],['Containment','Auto-blocked at email gateway']],
+    rca:'Spear-phishing with spoofed CFO display name — payload was a credential-harvesting page on a typosquat domain. Threat-intel match: same TTPs seen at two regional utilities last month.',
+    timeline:[['02:14','Mail gateway flagged & quarantined'],['02:30','SOC paged; users informed'],['08:00','User-awareness reminder sent firm-wide'],['+24h','Forensics report due']],
+    actions:[['Tabletop exercise with Finance leadership','CISO · this week'],['Enforce MFA hardware tokens for Finance','IT · 30 days'],['Brief Board Risk Committee at next sitting','CISO / CEO']]},
+  {sev:'warn', src:'SEV', title:'SEV U1 ambient derate', body:'50 MW derate; within ISO band', time:'04:20',
+    detected:'04:20 MYT · 19 May 2026', owner:'Plant Manager — SEV', sla:'Monitor; restore on cooler ambient',
+    impact:[['Derate','50 MW (~7%)'],['Cause','Ambient 34°C vs ISO 15°C'],['PPA','Within capacity tolerance band'],['Revenue impact','Negligible — variable energy only']],
+    rca:'Gas turbine inlet air temperature exceeded design point. Compressor mass-flow reduced; output drops linearly with ambient above ISO. Normal seasonal behaviour.',
+    timeline:[['04:20','Derate triggered as ambient crossed 32°C'],['Evening','Expect partial recovery as ambient drops'],['Q4','Evaluate inlet air chilling business case']],
+    actions:[['Confirm no contractual notification required','Commercial · today'],['Refresh inlet-cooling NPV with current gas curve','Engineering · 30 days']]},
+  {sev:'info', src:'LSS', title:'LSS4 Mukah COD achieved', body:'30 MW solar — ahead of schedule', time:'05:50',
+    detected:'05:50 MYT · 19 May 2026', owner:'GM Renewables', sla:'Commercial ramp to full output within 14 days',
+    impact:[['Capacity added','30 MWac / 36 MWdc'],['Schedule','11 days ahead of plan'],['CAPEX','RM 138m — 2% under budget'],['First-year energy','~52 GWh expected']],
+    rca:'Project benefited from early module delivery and clear-weather window during commissioning. ST issued operating licence on first submission.',
+    timeline:[['Today','COD declared & energised'],['+7d','Performance test window'],['+14d','PPA commercial operations'],['Q3','Final account close-out']],
+    actions:[['Issue press release & LinkedIn post','Corp Comms · today'],['Capture lessons learnt for LSS5 pipeline','PMO · 2 weeks'],['Update FY26 RE capacity guidance to Investors','CFO · next briefing']]},
 ];
 
 /* ============ CLOCK & TICKER ============ */
@@ -861,7 +886,7 @@ function switchTab(name) {
 /* ============ ALERTS ============ */
 function renderAlerts() {
   const html = initialAlerts.map((a,i) => `
-    <div class="alert ${a.sev}" data-i="${i}">
+    <div class="alert ${a.sev}" data-i="${i}" style="cursor:pointer" title="Click for full alert detail">
       <div class="a-head">
         <span class="a-title">${a.src} · ${a.title}</span>
         <span class="a-meta">
@@ -878,8 +903,42 @@ function renderAlerts() {
       b.closest('.alert').classList.add('acknowledged');
     });
   });
+  document.querySelectorAll('#alertsList .alert').forEach(el => {
+    el.addEventListener('click', e => {
+      if (e.target.closest('.ack')) return;
+      showAlertDrawer(initialAlerts[+el.dataset.i]);
+    });
+  });
 }
 renderAlerts();
+
+function showAlertDrawer(a) {
+  const sevLabel = {crit:'CRITICAL', warn:'WARNING', info:'INFO'}[a.sev] || 'ALERT';
+  const sevColor = {crit:'var(--cp-danger)', warn:'var(--cp-warning)', info:'var(--cp-link)'}[a.sev] || 'var(--cp-text)';
+  document.getElementById('drwTitle').textContent = `${a.src} · ${a.title}`;
+  document.getElementById('drwSub').innerHTML = `<span style="color:${sevColor};font-weight:700">${sevLabel}</span> · ${a.detected || a.time} · Owner: ${a.owner || '—'}`;
+  let body = '';
+  body += `<section><h4>Situation</h4><p>${a.body}</p>${a.sla?`<p class="muted small" style="margin-top:6px"><strong>SLA:</strong> ${a.sla}</p>`:''}</section>`;
+  if (a.impact && a.impact.length) {
+    body += `<section><h4>Impact</h4><div class="stat-row">`;
+    a.impact.forEach(([l,v]) => body += `<div class="stat-box"><div class="l">${l}</div><div class="v">${v}</div></div>`);
+    body += `</div></section>`;
+  }
+  if (a.rca) body += `<section><h4>Root Cause / Assessment</h4><p>${a.rca}</p></section>`;
+  if (a.timeline && a.timeline.length) {
+    body += `<section><h4>Timeline</h4><ul class="actions">`;
+    a.timeline.forEach(([t,e]) => body += `<li><strong style="font-family:Consolas,monospace;color:var(--cp-text)">${t}</strong> — ${e}</li>`);
+    body += `</ul></section>`;
+  }
+  if (a.actions && a.actions.length) {
+    body += `<section><h4>Recommended Actions</h4><ul class="actions">`;
+    a.actions.forEach(([t,o]) => body += `<li>${t}<span class="own">— ${o}</span></li>`);
+    body += `</ul></section>`;
+  }
+  document.getElementById('drwBody').innerHTML = body;
+  document.getElementById('drawer').classList.add('show');
+  document.getElementById('drawerBg').classList.add('show');
+}
 
 /* ============ MAP ============ */
 const pg = document.getElementById('plantGroup');
